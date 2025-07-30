@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+sure document.addEventListener('DOMContentLoaded', () => {
     const term = new Terminal({
         cursorBlink: true,
         fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Menlo, Monaco, 'Courier New', monospace",
@@ -24,8 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     const socket = new WebSocket(wsUrl);
     
-    const fitAddon = new FitAddon.FitAddon();
-    const attachAddon = new AttachAddon.AttachAddon(socket);
+    const fitAddon = new FitAddon();
+    const attachAddon = new AttachAddon(socket);
     
     term.loadAddon(fitAddon);
     term.loadAddon(attachAddon);
