@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/PiTZE/PorTTY/internal/ptybridge"
 	"github.com/gorilla/websocket"
-	"your.org/portty/internal/ptybridge"
 )
 
 const (

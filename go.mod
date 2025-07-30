@@ -1,4 +1,4 @@
-module your.org/portty
+module github.com/PiTZE/PorTTY
 
 go 1.21
 
