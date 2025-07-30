@@ -49,19 +49,20 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log(`Connecting to WebSocket at ${wsUrl}`);
     
     const socket = new WebSocket(wsUrl);
+    
+    // Initialize the fit addon
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
 
     // Handle WebSocket events
     socket.onopen = () => {
         console.log('WebSocket connection established');
         term.clear();
-
-        // Handle terminal input
-        term.onData(data => {
-            if (socket.readyState === WebSocket.OPEN) {
-                socket.send(data);
-            }
-        });
-
+        
+        // Initialize the attach addon
+        const attachAddon = new AttachAddon.AttachAddon(socket);
+        term.loadAddon(attachAddon);
+        
         // Handle terminal resize
         term.onResize(size => {
             if (socket.readyState === WebSocket.OPEN) {
@@ -75,25 +76,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Trigger initial resize
+        fitAddon.fit();
         const initialSize = JSON.stringify({
             type: 'resize',
             cols: term.cols,
             rows: term.rows
         });
         socket.send(initialSize);
-    };
-
-    socket.onmessage = event => {
-        // Handle binary data
-        if (typeof event.data === 'string') {
-            term.write(event.data);
-        } else {
-            const reader = new FileReader();
-            reader.onload = () => {
-                term.write(new Uint8Array(reader.result));
-            };
-            reader.readAsArrayBuffer(event.data);
-        }
     };
 
     socket.onclose = () => {
@@ -108,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Handle window resize
     window.addEventListener('resize', () => {
-        fitTerminal();
+        fitAddon.fit();
     });
     
     // Use ResizeObserver for more reliable size detection
@@ -116,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const resizeObserver = new ResizeObserver(entries => {
             for (let entry of entries) {
                 if (entry.target === terminalContainer) {
-                    fitTerminal();
+                    fitAddon.fit();
                 }
             }
         });
@@ -124,48 +113,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Start observing the terminal element
         resizeObserver.observe(terminalContainer);
     }
-
-    // Function to fit terminal to window
-    function fitTerminal() {
-        // Calculate available space
-        const availableWidth = terminalContainer.clientWidth;
-        const availableHeight = terminalContainer.clientHeight;
-
-        // Get character dimensions - fallback to reasonable defaults if not available
-        let charWidth = 9;
-        let charHeight = 17;
-        
-        try {
-            if (term._core && term._core._renderService && term._core._renderService.dimensions) {
-                charWidth = term._core._renderService.dimensions.actualCellWidth || charWidth;
-                charHeight = term._core._renderService.dimensions.actualCellHeight || charHeight;
-            }
-        } catch (e) {
-            console.warn('Could not get terminal dimensions, using defaults', e);
-        }
-
-        // Calculate new dimensions
-        const cols = Math.max(10, Math.floor(availableWidth / charWidth));
-        const rows = Math.max(5, Math.floor(availableHeight / charHeight));
-
-        // Resize terminal
-        if (cols > 0 && rows > 0) {
-            console.log(`Resizing terminal to ${cols}x${rows}`);
-            term.resize(cols, rows);
-
-            // Send resize event to server
-            if (socket.readyState === WebSocket.OPEN) {
-                socket.send(JSON.stringify({
-                    type: 'resize',
-                    cols: cols,
-                    rows: rows
-                }));
-            }
-        }
-    }
-
-    // Initial fit after a short delay to ensure terminal is fully initialized
-    setTimeout(fitTerminal, 100);
 
     // Handle copy/paste
     document.addEventListener('copy', event => {
