@@ -146,6 +146,12 @@ func runServer(address string, pidFilePath string) {
 	// Handle WebSocket connections
 	mux.HandleFunc("/ws", websocket.HandleWS)
 
+	// Handle favicon to prevent 404 errors
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/x-icon")
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	// Create a sub-filesystem for the web content
 	webFS, err := fs.Sub(webContent, "assets")
 	if err != nil {

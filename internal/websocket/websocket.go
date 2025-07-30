@@ -91,11 +91,7 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	// Start a goroutine to read from PTY and write to WebSocket
 	go func() {
-		ticker := time.NewTicker(pingPeriod)
-		defer func() {
-			ticker.Stop()
-			conn.Close()
-		}()
+		defer conn.Close()
 
 		// Buffer for reading from the PTY
 		buf := make([]byte, 4096)
@@ -105,41 +101,50 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 			case <-ptyBridge.Done():
 				log.Println("PTY bridge done, exiting writer goroutine")
 				return
+			default:
+			}
 
+			// Try to read from the PTY with a timeout
+			n, err := ptyBridge.Read(buf)
+			if err != nil {
+				if err == io.EOF {
+					log.Println("PTY closed (EOF), exiting writer goroutine")
+					return
+				}
+				log.Printf("PTY read error: %v", err)
+				return
+			}
+
+			// If we read something, send it to the WebSocket
+			if n > 0 {
+				// Only log if more than 5 bytes to reduce log spam
+				if n > 5 {
+					log.Printf("Read %d bytes from PTY, sending to WebSocket", n)
+				}
+				conn.SetWriteDeadline(time.Now().Add(writeWait))
+				if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
+					log.Printf("WebSocket write error: %v", err)
+					return
+				}
+			}
+		}
+	}()
+
+	// Start a separate goroutine for ping messages
+	go func() {
+		ticker := time.NewTicker(pingPeriod)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ptyBridge.Done():
+				return
 			case <-ticker.C:
 				// Send ping
 				conn.SetWriteDeadline(time.Now().Add(writeWait))
 				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					log.Printf("Error sending ping: %v", err)
 					return
-				}
-
-			default:
-				// Try to read from the PTY
-				n, err := ptyBridge.Read(buf)
-				if err != nil {
-					if err == io.EOF {
-						log.Println("PTY closed (EOF), exiting writer goroutine")
-						return
-					}
-					log.Printf("PTY read error: %v", err)
-					return
-				}
-
-				// If we read something, send it to the WebSocket
-				if n > 0 {
-					// Only log if more than 5 bytes to reduce log spam
-					if n > 5 {
-						log.Printf("Read %d bytes from PTY, sending to WebSocket", n)
-					}
-					conn.SetWriteDeadline(time.Now().Add(writeWait))
-					if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
-						log.Printf("WebSocket write error: %v", err)
-						return
-					}
-				} else {
-					// If we didn't read anything, sleep a bit to avoid busy-waiting
-					time.Sleep(30 * time.Millisecond)
 				}
 			}
 		}
