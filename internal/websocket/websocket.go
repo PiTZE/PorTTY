@@ -89,7 +89,7 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Start a goroutine to write to the WebSocket
+	// Start a goroutine to read from PTY and write to WebSocket
 	go func() {
 		ticker := time.NewTicker(pingPeriod)
 		defer func() {
@@ -118,14 +118,11 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 				// Try to read from the PTY
 				n, err := ptyBridge.Read(buf)
 				if err != nil {
-					if err != io.EOF {
-						log.Printf("PTY read error: %v", err)
-					}
-					// Don't return on EOF, as the PTY might produce more output later
 					if err == io.EOF {
-						time.Sleep(100 * time.Millisecond)
-						continue
+						log.Println("PTY closed (EOF), exiting writer goroutine")
+						return
 					}
+					log.Printf("PTY read error: %v", err)
 					return
 				}
 

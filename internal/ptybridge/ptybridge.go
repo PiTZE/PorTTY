@@ -5,20 +5,23 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 )
 
 // PTYBridge manages the connection between a PTY and a client
 type PTYBridge struct {
-	cmd  *exec.Cmd
-	pty  *os.File
-	mu   sync.Mutex
-	done chan struct{}
+	cmd         *exec.Cmd
+	pty         *os.File
+	mu          sync.Mutex
+	done        chan struct{}
+	sessionName string
 }
 
 // ResizeMessage represents a terminal resize request
@@ -30,13 +33,12 @@ type ResizeMessage struct {
 
 // New creates a new PTY bridge
 func New() (*PTYBridge, error) {
-	// Clean up any existing PorTTY sessions (in case of previous abrupt termination)
-	cleanupCmd := exec.Command("tmux", "kill-session", "-t", "PorTTY")
-	// Ignore errors since the session might not exist
-	cleanupCmd.Run()
+	// Generate a unique session name to avoid conflicts
+	rand.Seed(time.Now().UnixNano())
+	sessionName := fmt.Sprintf("PorTTY-%d", rand.Intn(100000))
 
-	// Start tmux with a new session named "PorTTY"
-	cmd := exec.Command("tmux", "new-session", "-A", "-s", "PorTTY")
+	// Start tmux with a unique session name
+	cmd := exec.Command("tmux", "new-session", "-s", sessionName)
 
 	// Set environment variables for better terminal experience
 	cmd.Env = append(os.Environ(),
@@ -60,12 +62,13 @@ func New() (*PTYBridge, error) {
 		return nil, fmt.Errorf("failed to set initial terminal size: %w", err)
 	}
 
-	log.Printf("Started PTY with tmux session")
+	log.Printf("Started PTY with tmux session: %s", sessionName)
 
 	return &PTYBridge{
-		cmd:  cmd,
-		pty:  ptmx,
-		done: make(chan struct{}),
+		cmd:         cmd,
+		pty:         ptmx,
+		done:        make(chan struct{}),
+		sessionName: sessionName,
 	}, nil
 }
 
@@ -124,7 +127,7 @@ func (p *PTYBridge) Close() error {
 	}
 
 	// Kill the tmux session
-	killCmd := exec.Command("tmux", "kill-session", "-t", "PorTTY")
+	killCmd := exec.Command("tmux", "kill-session", "-t", p.sessionName)
 	killCmd.Run()
 
 	// Kill the process
