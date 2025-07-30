@@ -30,6 +30,11 @@ type ResizeMessage struct {
 
 // New creates a new PTY bridge
 func New() (*PTYBridge, error) {
+	// Clean up any existing PorTTY sessions (in case of previous abrupt termination)
+	cleanupCmd := exec.Command("tmux", "kill-session", "-t", "PorTTY")
+	// Ignore errors since the session might not exist
+	cleanupCmd.Run()
+
 	// Start tmux with a new session named "PorTTY"
 	cmd := exec.Command("tmux", "new-session", "-A", "-s", "PorTTY")
 
@@ -175,7 +180,39 @@ func sanitizeInput(data []byte) []byte {
 						result = append(result, c)
 						i++
 						// End of sequence
-						if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') {
+						if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '@' || c == '`' || c == '{' || c == '|' || c == '}' || c == '~' {
+							break
+						}
+					}
+				} else if i+1 < len(data) && data[i+1] == ']' {
+					// OSC sequences (Operating System Command)
+					result = append(result, data[i+1])
+					i++
+					// OSC sequences end with BEL (7) or ST (ESC \)
+					for j := i + 1; j < len(data); j++ {
+						c := data[j]
+						result = append(result, c)
+						i++
+						if c == 0x07 { // BEL
+							break
+						}
+						if c == 0x1B && j+1 < len(data) && data[j+1] == '\\' {
+							result = append(result, data[j+1])
+							i++
+							break
+						}
+					}
+				} else if i+1 < len(data) && data[i+1] == '>' {
+					// Device Attributes sequences
+					result = append(result, data[i+1])
+					i++
+					// Consume until the end of the sequence
+					for j := i + 1; j < len(data); j++ {
+						c := data[j]
+						result = append(result, c)
+						i++
+						// End of sequence
+						if c == 'c' {
 							break
 						}
 					}
