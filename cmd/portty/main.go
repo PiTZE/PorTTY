@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"embed"
-	"flag"
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -28,14 +28,11 @@ const (
 	SessionName = "PorTTY"
 	// PidFileName is the name of the file that stores the PID
 	PidFileName = ".portty.pid"
+	// DefaultAddress is the default address to bind to
+	DefaultAddress = "localhost:7314"
 )
 
 func main() {
-	// Parse command line flags
-	port := flag.Int("port", 8080, "Port to listen on")
-	command := flag.String("command", "run", "Command to execute: run or stop")
-	flag.Parse()
-
 	// Get the home directory for storing the PID file
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -43,15 +40,67 @@ func main() {
 	}
 	pidFilePath := filepath.Join(homeDir, PidFileName)
 
+	// Parse command line arguments
+	if len(os.Args) < 2 {
+		showHelp()
+		return
+	}
+
+	command := os.Args[1]
+
 	// Handle commands
-	switch *command {
+	switch command {
 	case "run":
-		runServer(*port, pidFilePath)
+		address := DefaultAddress
+		if len(os.Args) > 2 {
+			address = os.Args[2]
+		}
+		runServer(address, pidFilePath)
 	case "stop":
 		stopServer(pidFilePath)
+	case "help", "--help", "-h":
+		showHelp()
 	default:
-		log.Fatalf("Unknown command: %s. Use 'run' or 'stop'", *command)
+		fmt.Printf("Unknown command: %s\n\n", command)
+		showHelp()
+		os.Exit(1)
 	}
+}
+
+// showHelp displays usage information
+func showHelp() {
+	fmt.Println("PorTTY - Web-based Terminal")
+	fmt.Println()
+	fmt.Println("Usage:")
+	fmt.Println("  ./portty run [address]    Start the server (default: localhost:7314)")
+	fmt.Println("  ./portty stop             Stop the server")
+	fmt.Println("  ./portty help             Show this help message")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  ./portty run              # Start on localhost:7314")
+	fmt.Println("  ./portty run :8080        # Start on all interfaces, port 8080")
+	fmt.Println("  ./portty run 0.0.0.0:8080 # Start on all interfaces, port 8080")
+	fmt.Println("  ./portty run localhost:3000 # Start on localhost, port 3000")
+	fmt.Println("  ./portty stop             # Stop the server")
+}
+
+// parseAddress parses the address and returns host and port
+func parseAddress(address string) (string, int, error) {
+	host, portStr, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid address format: %v", err)
+	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid port: %v", err)
+	}
+
+	if host == "" {
+		host = "localhost"
+	}
+
+	return host, port, nil
 }
 
 // checkTmuxInstalled checks if tmux is installed
@@ -68,10 +117,16 @@ func checkSessionExists(sessionName string) bool {
 }
 
 // runServer starts the PorTTY server
-func runServer(port int, pidFilePath string) {
+func runServer(address string, pidFilePath string) {
 	// Check if tmux is installed
 	if !checkTmuxInstalled() {
 		log.Fatalf("tmux is not installed. Please install tmux to use PorTTY.")
+	}
+
+	// Parse the address
+	host, port, err := parseAddress(address)
+	if err != nil {
+		log.Fatalf("Error parsing address: %v", err)
 	}
 
 	// Check if the tmux session already exists
@@ -102,14 +157,15 @@ func runServer(port int, pidFilePath string) {
 	mux.Handle("/", fileServer)
 
 	// Create HTTP server
+	bindAddr := fmt.Sprintf("%s:%d", host, port)
 	server := &http.Server{
-		Addr:    fmt.Sprintf("0.0.0.0:%d", port),
+		Addr:    bindAddr,
 		Handler: mux,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("Starting PorTTY on http://0.0.0.0:%d", port)
+		log.Printf("Starting PorTTY on http://%s", bindAddr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server error: %v", err)
 		}
@@ -194,10 +250,10 @@ func findAndKillProcess() {
 	log.Println("Trying to find PorTTY process by name...")
 
 	// Use pgrep to find the process
-	cmd := exec.Command("bash", "-c", "pgrep -f 'portty --command run|portty --port'")
+	cmd := exec.Command("bash", "-c", "pgrep -f 'portty run'")
 	output, err := cmd.Output()
 	if err != nil {
-		log.Printf("No PorTTY process found: %v", err)
+		log.Printf("No PorTTY process found")
 		return
 	}
 
