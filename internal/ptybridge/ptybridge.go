@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"os"
 	"os/exec"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/creack/pty"
 )
@@ -24,6 +22,12 @@ type PTYBridge struct {
 	sessionName string
 }
 
+// Global session name for all connections
+const GlobalSessionName = "PorTTY"
+
+// Global mutex to protect session creation
+var sessionMutex sync.Mutex
+
 // ResizeMessage represents a terminal resize request
 type ResizeMessage struct {
 	Type       string     `json:"type"`
@@ -36,14 +40,34 @@ type Dimensions struct {
 	Rows int `json:"rows"`
 }
 
-// New creates a new PTY bridge
+// New creates a new PTY bridge or connects to an existing one
 func New() (*PTYBridge, error) {
-	// Generate a unique session name to avoid conflicts
-	rand.Seed(time.Now().UnixNano())
-	sessionName := fmt.Sprintf("PorTTY-%d", rand.Intn(100000))
+	// Use a mutex to ensure only one process tries to create/attach to the session at a time
+	sessionMutex.Lock()
+	defer sessionMutex.Unlock()
 
-	// Start tmux with a unique session name
-	cmd := exec.Command("tmux", "new-session", "-s", sessionName)
+	// First, check if the session already exists
+	sessionExists := checkSessionExists(GlobalSessionName)
+
+	var cmd *exec.Cmd
+	var ptmx *os.File
+	var err error
+
+	if sessionExists {
+		// Session exists, attach to it
+		log.Printf("Attaching to existing tmux session: %s", GlobalSessionName)
+		cmd = exec.Command("tmux", "attach-session", "-t", GlobalSessionName)
+	} else {
+		// Session doesn't exist, create a new one
+		log.Printf("Creating new tmux session: %s", GlobalSessionName)
+
+		// First, kill any orphaned sessions with our name (just to be safe)
+		killCmd := exec.Command("tmux", "kill-session", "-t", GlobalSessionName)
+		killCmd.Run() // Ignore errors, as the session might not exist
+
+		// Create a new session
+		cmd = exec.Command("tmux", "new-session", "-s", GlobalSessionName)
+	}
 
 	// Set environment variables for better terminal experience
 	cmd.Env = append(os.Environ(),
@@ -52,7 +76,7 @@ func New() (*PTYBridge, error) {
 	)
 
 	// Start the command with a pty
-	ptmx, err := pty.Start(cmd)
+	ptmx, err = pty.Start(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start pty: %w", err)
 	}
@@ -67,14 +91,21 @@ func New() (*PTYBridge, error) {
 		return nil, fmt.Errorf("failed to set initial terminal size: %w", err)
 	}
 
-	log.Printf("Started PTY with tmux session: %s", sessionName)
+	log.Printf("Connected to tmux session: %s", GlobalSessionName)
 
 	return &PTYBridge{
 		cmd:         cmd,
 		pty:         ptmx,
 		done:        make(chan struct{}),
-		sessionName: sessionName,
+		sessionName: GlobalSessionName,
 	}, nil
+}
+
+// checkSessionExists checks if a tmux session exists
+func checkSessionExists(sessionName string) bool {
+	cmd := exec.Command("tmux", "has-session", "-t", sessionName)
+	err := cmd.Run()
+	return err == nil
 }
 
 // Read reads from the PTY
@@ -125,7 +156,7 @@ func (p *PTYBridge) Resize(rows, cols int) error {
 	})
 }
 
-// Close closes the PTY and kills the process
+// Close closes the PTY but keeps the tmux session alive
 func (p *PTYBridge) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -140,11 +171,10 @@ func (p *PTYBridge) Close() error {
 		close(p.done)
 	}
 
-	// Kill the tmux session
-	killCmd := exec.Command("tmux", "kill-session", "-t", p.sessionName)
-	killCmd.Run()
+	// We don't kill the tmux session anymore, as it's shared between clients
+	log.Printf("Client disconnected from tmux session: %s", p.sessionName)
 
-	// Kill the process
+	// Kill the client process (not the session)
 	if p.cmd.Process != nil {
 		p.cmd.Process.Signal(syscall.SIGTERM)
 		p.cmd.Process.Kill()

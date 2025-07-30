@@ -63,8 +63,16 @@ func main() {
 	<-stop
 	log.Println("Shutting down server...")
 
-	// Kill any remaining tmux sessions
-	exec.Command("tmux", "kill-session", "-t", "PorTTY").Run()
+	// Kill the main tmux session
+	log.Println("Cleaning up tmux session...")
+	killCmd := exec.Command("tmux", "kill-session", "-t", "PorTTY")
+	if err := killCmd.Run(); err != nil {
+		log.Printf("Failed to kill tmux session: %v", err)
+	}
+
+	// Also clean up any orphaned sessions with PorTTY prefix
+	cleanupCmd := exec.Command("bash", "-c", "tmux list-sessions -F '#{session_name}' 2>/dev/null | grep '^PorTTY-' | xargs -I{} tmux kill-session -t {} 2>/dev/null || true")
+	cleanupCmd.Run()
 
 	// Create a deadline for graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
