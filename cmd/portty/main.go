@@ -17,7 +17,7 @@ import (
 	"your.org/portty/internal/websocket"
 )
 
-//go:embed web
+//go:embed assets
 var webContent embed.FS
 
 func main() {
@@ -32,7 +32,7 @@ func main() {
 	mux.HandleFunc("/ws", websocket.HandleWS)
 
 	// Create a sub-filesystem for the web content
-	webFS, err := fs.Sub(webContent, "web")
+	webFS, err := fs.Sub(webContent, "assets")
 	if err != nil {
 		log.Fatalf("Failed to create sub-filesystem: %v", err)
 	}
