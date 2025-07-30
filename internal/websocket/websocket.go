@@ -128,7 +128,10 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 
 				// If we read something, send it to the WebSocket
 				if n > 0 {
-					log.Printf("Read %d bytes from PTY, sending to WebSocket", n)
+					// Only log if more than 5 bytes to reduce log spam
+					if n > 5 {
+						log.Printf("Read %d bytes from PTY, sending to WebSocket", n)
+					}
 					conn.SetWriteDeadline(time.Now().Add(writeWait))
 					if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
 						log.Printf("WebSocket write error: %v", err)
@@ -136,7 +139,7 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 					}
 				} else {
 					// If we didn't read anything, sleep a bit to avoid busy-waiting
-					time.Sleep(10 * time.Millisecond)
+					time.Sleep(30 * time.Millisecond)
 				}
 			}
 		}
