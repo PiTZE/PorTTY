@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"your.org/portty/internal/websocket"
+	"github.com/PiTZE/PorTTY/internal/websocket"
 )
 
 //go:embed assets
