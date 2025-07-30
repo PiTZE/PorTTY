@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // Initialize terminal with better defaults
+    // Initialize terminal
     const term = new Terminal({
         cursorBlink: true,
         fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Menlo, Monaco, 'Courier New', monospace",
@@ -41,33 +41,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         theme: { 
             background: '#000000',
             foreground: '#f0f0f0',
-            cursor: '#ffffff',
-            black: '#000000',
-            red: '#cc0000',
-            green: '#4e9a06',
-            yellow: '#c4a000',
-            blue: '#3465a4',
-            magenta: '#75507b',
-            cyan: '#06989a',
-            white: '#d3d7cf',
-            brightBlack: '#555753',
-            brightRed: '#ef2929',
-            brightGreen: '#8ae234',
-            brightYellow: '#fce94f',
-            brightBlue: '#729fcf',
-            brightMagenta: '#ad7fa8',
-            brightCyan: '#34e2e2',
-            brightWhite: '#eeeeec'
+            cursor: '#ffffff'
         },
-        allowTransparency: false,
-        scrollback: 10000,
-        convertEol: true
+        scrollback: 10000
     });
 
     // Open terminal in the container
     term.open(terminalContainer);
     term.focus();
-    term.write('Connecting to terminal...\r\n');
 
     // Connect to WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -77,76 +58,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     const socket = new WebSocket(wsUrl);
     
-    // Initialize the fit addon
+    // Load addons - let them handle everything automatically
     const fitAddon = new FitAddon.FitAddon();
-    term.loadAddon(fitAddon);
-
-    // Initialize the attach addon immediately
     const attachAddon = new AttachAddon.AttachAddon(socket);
-    term.loadAddon(attachAddon);
-
-    // Handle terminal resize - send size changes to server for PTY resizing
-    term.onResize(size => {
-        if (socket.readyState === WebSocket.OPEN) {
-            const resizeMessage = JSON.stringify({
-                type: 'resize',
-                cols: size.cols,
-                rows: size.rows
-            });
-            socket.send(resizeMessage);
-        }
-    });
-
-    // Handle WebSocket events
-    socket.onopen = () => {
-        console.log('WebSocket connection established');
-        term.clear();
-        
-        // Trigger initial fit and send size to server
-        fitAddon.fit();
-        const initialSize = JSON.stringify({
-            type: 'resize',
-            cols: term.cols,
-            rows: term.rows
-        });
-        socket.send(initialSize);
-    };
-
-    socket.onclose = () => {
-        console.log('WebSocket connection closed');
-        term.write('\r\n\r\nConnection closed. Refresh to reconnect.\r\n');
-    };
-
-    socket.onerror = error => {
-        console.error('WebSocket error:', error);
-        term.write('\r\n\r\nWebSocket error. Check console for details.\r\n');
-    };
-
-    // Handle window resize - FitAddon will automatically resize terminal and trigger onResize
-    window.addEventListener('resize', () => {
-        fitAddon.fit();
-    });
     
-    // Use ResizeObserver for more reliable size detection
-    if (window.ResizeObserver) {
-        const resizeObserver = new ResizeObserver(entries => {
-            for (let entry of entries) {
-                if (entry.target === terminalContainer) {
-                    fitAddon.fit();
-                }
-            }
-        });
-        
-        // Start observing the terminal container
-        resizeObserver.observe(terminalContainer);
-    }
-
-    // Handle copy/paste (AttachAddon handles input automatically)
-    document.addEventListener('copy', event => {
-        const selection = term.getSelection();
-        if (selection) {
-            event.clipboardData.setData('text/plain', selection);
-            event.preventDefault();
-        }
-    });
+    term.loadAddon(fitAddon);
+    term.loadAddon(attachAddon);
 });
