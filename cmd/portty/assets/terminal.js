@@ -81,28 +81,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fitAddon = new FitAddon.FitAddon();
     term.loadAddon(fitAddon);
 
+    // Initialize the attach addon immediately
+    const attachAddon = new AttachAddon.AttachAddon(socket);
+    term.loadAddon(attachAddon);
+
+    // Handle terminal resize - send size changes to server for PTY resizing
+    term.onResize(size => {
+        if (socket.readyState === WebSocket.OPEN) {
+            const resizeMessage = JSON.stringify({
+                type: 'resize',
+                cols: size.cols,
+                rows: size.rows
+            });
+            socket.send(resizeMessage);
+        }
+    });
+
     // Handle WebSocket events
     socket.onopen = () => {
         console.log('WebSocket connection established');
         term.clear();
         
-        // Initialize the attach addon
-        const attachAddon = new AttachAddon.AttachAddon(socket);
-        term.loadAddon(attachAddon);
-        
-        // Handle terminal resize
-        term.onResize(size => {
-            if (socket.readyState === WebSocket.OPEN) {
-                const resizeMessage = JSON.stringify({
-                    type: 'resize',
-                    cols: size.cols,
-                    rows: size.rows
-                });
-                socket.send(resizeMessage);
-            }
-        });
-
-        // Trigger initial resize
+        // Trigger initial fit and send size to server
         fitAddon.fit();
         const initialSize = JSON.stringify({
             type: 'resize',
@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         term.write('\r\n\r\nWebSocket error. Check console for details.\r\n');
     };
 
-    // Handle window resize
+    // Handle window resize - FitAddon will automatically resize terminal and trigger onResize
     window.addEventListener('resize', () => {
         fitAddon.fit();
     });
@@ -137,25 +137,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         
-        // Start observing the terminal element
+        // Start observing the terminal container
         resizeObserver.observe(terminalContainer);
     }
 
-    // Handle copy/paste
+    // Handle copy/paste (AttachAddon handles input automatically)
     document.addEventListener('copy', event => {
         const selection = term.getSelection();
         if (selection) {
             event.clipboardData.setData('text/plain', selection);
-            event.preventDefault();
-        }
-    });
-
-    document.addEventListener('paste', event => {
-        if (document.activeElement === terminalContainer || terminalContainer.contains(document.activeElement)) {
-            const text = event.clipboardData.getData('text/plain');
-            if (socket.readyState === WebSocket.OPEN) {
-                socket.send(text);
-            }
             event.preventDefault();
         }
     });
