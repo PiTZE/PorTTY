@@ -124,11 +124,23 @@ func (p *PTYBridge) Write(b []byte) (int, error) {
 
 // ProcessInput processes input from the client
 func (p *PTYBridge) ProcessInput(data []byte) error {
-	// First, try to parse as JSON for resize messages
-	var resizeMsg ResizeMessage
-	if err := json.Unmarshal(data, &resizeMsg); err == nil && resizeMsg.Type == "resize" {
-		log.Printf("Resizing terminal to %d rows, %d cols", resizeMsg.Dimensions.Rows, resizeMsg.Dimensions.Cols)
-		return p.Resize(resizeMsg.Dimensions.Rows, resizeMsg.Dimensions.Cols)
+	// First, try to parse as JSON for control messages
+	var msg map[string]interface{}
+	if err := json.Unmarshal(data, &msg); err == nil {
+		if msgType, ok := msg["type"].(string); ok {
+			switch msgType {
+			case "resize":
+				var resizeMsg ResizeMessage
+				if err := json.Unmarshal(data, &resizeMsg); err == nil {
+					log.Printf("Resizing terminal to %d rows, %d cols", resizeMsg.Dimensions.Rows, resizeMsg.Dimensions.Cols)
+					return p.Resize(resizeMsg.Dimensions.Rows, resizeMsg.Dimensions.Cols)
+				}
+			case "keepalive":
+				// Just acknowledge the keepalive, no action needed
+				log.Printf("Received keepalive message")
+				return nil
+			}
+		}
 	}
 
 	// Check for the problematic control sequence
