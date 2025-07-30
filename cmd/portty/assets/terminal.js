@@ -43,7 +43,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             foreground: '#f0f0f0',
             cursor: '#ffffff'
         },
-        scrollback: 10000
+        scrollback: 10000,
+        allowProposedApi: true
     });
 
     // Open terminal in the container
@@ -58,10 +59,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     const socket = new WebSocket(wsUrl);
     
-    // Load addons - let them handle everything automatically
+    // Load addons
     const fitAddon = new FitAddon.FitAddon();
     const attachAddon = new AttachAddon.AttachAddon(socket);
     
     term.loadAddon(fitAddon);
     term.loadAddon(attachAddon);
+    
+    // Handle window resize
+    function resizeTerminal() {
+        try {
+            fitAddon.fit();
+            // Send terminal size to server
+            const dimensions = { cols: term.cols, rows: term.rows };
+            socket.send(JSON.stringify({ type: 'resize', dimensions }));
+            console.log('Terminal resized to', dimensions);
+        } catch (err) {
+            console.error('Error resizing terminal:', err);
+        }
+    }
+    
+    // Initial fit
+    setTimeout(resizeTerminal, 100);
+    
+    // Resize on window resize
+    window.addEventListener('resize', resizeTerminal);
+    
+    // Handle socket events
+    socket.addEventListener('open', () => {
+        console.log('WebSocket connection established');
+        resizeTerminal();
+    });
+    
+    socket.addEventListener('close', () => {
+        console.log('WebSocket connection closed');
+        term.write('\r\n\nConnection closed. Refresh to reconnect.\r\n');
+    });
+    
+    socket.addEventListener('error', (err) => {
+        console.error('WebSocket error:', err);
+        term.write('\r\n\nConnection error. Refresh to reconnect.\r\n');
+    });
 });

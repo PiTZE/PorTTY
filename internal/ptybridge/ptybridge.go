@@ -26,9 +26,14 @@ type PTYBridge struct {
 
 // ResizeMessage represents a terminal resize request
 type ResizeMessage struct {
-	Type string `json:"type"`
-	Cols int    `json:"cols"`
-	Rows int    `json:"rows"`
+	Type       string     `json:"type"`
+	Dimensions Dimensions `json:"dimensions"`
+}
+
+// Dimensions represents terminal dimensions
+type Dimensions struct {
+	Cols int `json:"cols"`
+	Rows int `json:"rows"`
 }
 
 // New creates a new PTY bridge
@@ -91,7 +96,16 @@ func (p *PTYBridge) ProcessInput(data []byte) error {
 	// First, try to parse as JSON for resize messages
 	var resizeMsg ResizeMessage
 	if err := json.Unmarshal(data, &resizeMsg); err == nil && resizeMsg.Type == "resize" {
-		return p.Resize(resizeMsg.Rows, resizeMsg.Cols)
+		log.Printf("Resizing terminal to %d rows, %d cols", resizeMsg.Dimensions.Rows, resizeMsg.Dimensions.Cols)
+		return p.Resize(resizeMsg.Dimensions.Rows, resizeMsg.Dimensions.Cols)
+	}
+
+	// Check for the problematic control sequence
+	if len(data) > 3 && data[0] == 27 && data[1] == '[' && data[2] == '>' {
+		// This is the "request terminal attributes" sequence that causes the "0;276;0c" response
+		// We'll just ignore it to prevent the terminal from showing this
+		log.Printf("Ignoring terminal attributes request sequence")
+		return nil
 	}
 
 	// Otherwise, treat as regular input
