@@ -1,5 +1,32 @@
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loaded, initializing terminal');
+// Wait for all scripts to load before initializing
+function waitForAddons() {
+    return new Promise((resolve) => {
+        const checkAddons = () => {
+            if (typeof FitAddon !== 'undefined' && typeof AttachAddon !== 'undefined' && 
+                typeof FitAddon.FitAddon === 'function' && typeof AttachAddon.AttachAddon === 'function') {
+                console.log('Addons loaded successfully');
+                resolve();
+            } else {
+                console.log('Waiting for addons to load...', {
+                    FitAddon: typeof FitAddon,
+                    AttachAddon: typeof AttachAddon,
+                    'FitAddon.FitAddon': typeof (FitAddon && FitAddon.FitAddon),
+                    'AttachAddon.AttachAddon': typeof (AttachAddon && AttachAddon.AttachAddon)
+                });
+                setTimeout(checkAddons, 100);
+            }
+        };
+        checkAddons();
+    });
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM loaded, waiting for addons...');
+    
+    // Wait for addons to be available
+    await waitForAddons();
+    
+    console.log('Initializing terminal with addons');
     const terminalContainer = document.getElementById('terminal-container');
     if (!terminalContainer) {
         console.error('Terminal container not found!');
