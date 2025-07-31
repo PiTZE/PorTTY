@@ -20,6 +20,9 @@ else
   YES_FLAG=true
 fi
 
+# Initialize variables
+SKIP_TMUX_CHECK=false
+
 # Trap signals for graceful shutdown
 trap 'cleanup EXIT' EXIT
 trap 'cleanup SIGINT' SIGINT
@@ -364,7 +367,9 @@ install_portty() {
     log_install_step "Starting PorTTY installation..."
     
     # Check prerequisites
-    check_tmux || return 1
+    if [ "$SKIP_TMUX_CHECK" != "true" ]; then
+        check_tmux || return 1
+    fi
     
     # Download binary
     download_binary || return 1
@@ -699,7 +704,16 @@ show_main_menu() {
     # If not running in an interactive terminal, use non-interactive mode
     if [ "$IS_INTERACTIVE_TERMINAL" = false ]; then
         log_info "Running in non-interactive mode. Using default installation."
-        if check_root && check_tmux && install_portty "$DEFAULT_INTERFACE" "$DEFAULT_PORT"; then
+        
+        # Check for tmux but make it optional in non-interactive mode
+        if ! command -v tmux &> /dev/null; then
+            log_warning "tmux is not installed. Continuing with installation anyway."
+            log_info "Note: tmux is recommended for optimal terminal experience."
+            # Set a flag to skip tmux check in install_portty
+            SKIP_TMUX_CHECK=true
+        fi
+        
+        if check_root && install_portty "$DEFAULT_INTERFACE" "$DEFAULT_PORT"; then
             log_info "PorTTY installed successfully!"
             echo "Access PorTTY at: http://$DEFAULT_INTERFACE:$DEFAULT_PORT"
         else
