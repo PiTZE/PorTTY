@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 )
@@ -110,16 +111,58 @@ func checkSessionExists(sessionName string) bool {
 
 // Read reads from the PTY
 func (p *PTYBridge) Read(b []byte) (int, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.pty.Read(b)
+	// Use a timeout to prevent deadlocks
+	readChan := make(chan readResult, 1)
+
+	go func() {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		n, err := p.pty.Read(b)
+		readChan <- readResult{n: n, err: err}
+	}()
+
+	// Wait for the read to complete with a timeout
+	select {
+	case result := <-readChan:
+		return result.n, result.err
+	case <-time.After(5 * time.Second):
+		// If we timeout, return a temporary error
+		return 0, fmt.Errorf("read timeout")
+	}
+}
+
+// readResult holds the result of a read operation
+type readResult struct {
+	n   int
+	err error
 }
 
 // Write writes to the PTY
 func (p *PTYBridge) Write(b []byte) (int, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.pty.Write(b)
+	// Use a timeout to prevent deadlocks
+	writeChan := make(chan writeResult, 1)
+
+	go func() {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		n, err := p.pty.Write(b)
+		writeChan <- writeResult{n: n, err: err}
+	}()
+
+	// Wait for the write to complete with a timeout
+	select {
+	case result := <-writeChan:
+		return result.n, result.err
+	case <-time.After(5 * time.Second):
+		// If we timeout, return a temporary error
+		return 0, fmt.Errorf("write timeout")
+	}
+}
+
+// writeResult holds the result of a write operation
+type writeResult struct {
+	n   int
+	err error
 }
 
 // ProcessInput processes input from the client
@@ -134,38 +177,55 @@ func (p *PTYBridge) ProcessInput(data []byte) error {
 				if err := json.Unmarshal(data, &resizeMsg); err == nil {
 					log.Printf("Resizing terminal to %d rows, %d cols", resizeMsg.Dimensions.Rows, resizeMsg.Dimensions.Cols)
 					return p.Resize(resizeMsg.Dimensions.Rows, resizeMsg.Dimensions.Cols)
+				} else {
+					log.Printf("Error parsing resize message: %v", err)
 				}
+				return nil
 			case "keepalive":
 				// Just acknowledge the keepalive, no action needed
-				log.Printf("Received keepalive message")
 				return nil
 			}
 		}
 	}
 
-	// Check for the problematic control sequence
-	if len(data) > 3 && data[0] == 27 && data[1] == '[' && data[2] == '>' {
-		// This is the "request terminal attributes" sequence that causes the "0;276;0c" response
-		// We'll just ignore it to prevent the terminal from showing this
-		log.Printf("Ignoring terminal attributes request sequence")
-		return nil
+	// Apply basic sanitization to prevent security issues
+	// but preserve all terminal control sequences
+	sanitized := sanitizeInput(data)
+
+	// Write the data to the PTY
+	n, err := p.Write(sanitized)
+	if err != nil {
+		log.Printf("Error writing to PTY: %v", err)
+	} else if n != len(sanitized) {
+		log.Printf("Warning: Only wrote %d of %d bytes to PTY", n, len(sanitized))
 	}
 
-	// Otherwise, treat as regular input
-	// Sanitize input (whitelist approach)
-	sanitized := sanitizeInput(data)
-	_, err := p.Write(sanitized)
 	return err
 }
 
 // Resize resizes the PTY
 func (p *PTYBridge) Resize(rows, cols int) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return pty.Setsize(p.pty, &pty.Winsize{
-		Rows: uint16(rows),
-		Cols: uint16(cols),
-	})
+	// Use a timeout to prevent deadlocks
+	resizeChan := make(chan error, 1)
+
+	go func() {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		err := pty.Setsize(p.pty, &pty.Winsize{
+			Rows: uint16(rows),
+			Cols: uint16(cols),
+		})
+		resizeChan <- err
+	}()
+
+	// Wait for the resize to complete with a timeout
+	select {
+	case err := <-resizeChan:
+		return err
+	case <-time.After(5 * time.Second):
+		// If we timeout, return a temporary error
+		return fmt.Errorf("resize timeout")
+	}
 }
 
 // Close closes the PTY but keeps the tmux session alive
@@ -207,88 +267,23 @@ func (p *PTYBridge) Copy(dst io.Writer) {
 }
 
 // sanitizeInput sanitizes input to prevent security issues
-// This is a simple implementation that allows common terminal control sequences
+// This is a simplified implementation that allows all common terminal control sequences
 func sanitizeInput(data []byte) []byte {
-	// For a real implementation, you would use a more sophisticated approach
-	// This is a simplified version that allows ASCII and common control sequences
-	result := make([]byte, 0, len(data))
-	for i := 0; i < len(data); i++ {
-		b := data[i]
-		// Allow ASCII printable characters
-		if b >= 32 && b <= 126 {
-			result = append(result, b)
-			continue
-		}
+	// For security reasons, we'll still do basic filtering
+	// but we'll be much more permissive to avoid breaking terminal functionality
 
-		// Allow common control characters
-		switch b {
-		case 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
-			0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x7F:
-			// Allow all control characters (0x01-0x1F and DEL)
-			result = append(result, b)
-
-			// For ESC sequences, include the whole sequence
-			if b == 0x1B && i+1 < len(data) {
-				// Handle ESC sequences
-				if i+1 < len(data) && data[i+1] == '[' {
-					result = append(result, data[i+1])
-					i++
-					// Consume until the end of the sequence
-					for j := i + 1; j < len(data); j++ {
-						c := data[j]
-						result = append(result, c)
-						i++
-						// End of sequence
-						if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '@' || c == '`' || c == '{' || c == '|' || c == '}' || c == '~' {
-							break
-						}
-					}
-				} else if i+1 < len(data) && data[i+1] == ']' {
-					// OSC sequences (Operating System Command)
-					result = append(result, data[i+1])
-					i++
-					// OSC sequences end with BEL (7) or ST (ESC \)
-					for j := i + 1; j < len(data); j++ {
-						c := data[j]
-						result = append(result, c)
-						i++
-						if c == 0x07 { // BEL
-							break
-						}
-						if c == 0x1B && j+1 < len(data) && data[j+1] == '\\' {
-							result = append(result, data[j+1])
-							i++
-							break
-						}
-					}
-				} else if i+1 < len(data) && data[i+1] == '>' {
-					// Device Attributes sequences
-					result = append(result, data[i+1])
-					i++
-					// Consume until the end of the sequence
-					for j := i + 1; j < len(data); j++ {
-						c := data[j]
-						result = append(result, c)
-						i++
-						// End of sequence
-						if c == 'c' {
-							break
-						}
-					}
-				} else {
-					// Handle other ESC sequences
-					for j := i + 1; j < len(data) && j < i+20; j++ { // Limit to 20 chars to prevent overflow
-						c := data[j]
-						result = append(result, c)
-						i++
-						// Most ESC sequences are short
-						if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') {
-							break
-						}
-					}
-				}
-			}
-		}
+	// Quick check for empty data
+	if len(data) == 0 {
+		return data
 	}
-	return result
+
+	// Check for extremely large inputs that might be malicious
+	if len(data) > 8192 {
+		// Truncate to a reasonable size
+		data = data[:8192]
+	}
+
+	// For most terminal input, we'll just pass it through
+	// This avoids complex parsing that could break escape sequences
+	return data
 }

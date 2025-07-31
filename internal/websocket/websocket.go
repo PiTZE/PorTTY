@@ -61,29 +61,36 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer ptyBridge.Close()
 		for {
+			// Set a reasonable read deadline to prevent hanging
+			conn.SetReadDeadline(time.Now().Add(pongWait))
+
 			messageType, message, err := conn.ReadMessage()
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 					log.Printf("WebSocket read error: %v", err)
+				} else if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
+					// Only log if it's not a normal closure
+					log.Printf("WebSocket connection closed: %v", err)
 				}
 				break
 			}
 
 			// Process both text and binary messages
 			if messageType == websocket.TextMessage || messageType == websocket.BinaryMessage {
-				// Log the message for debugging (only first 20 bytes to avoid flooding logs)
-				if len(message) > 0 {
-					logLen := len(message)
-					if logLen > 20 {
-						logLen = 20
-					}
-					log.Printf("Received message type %d, first %d bytes: %v", messageType, logLen, message[:logLen])
+				// Only log if debug logging is needed
+				if len(message) > 0 && len(message) < 100 {
+					// Avoid logging large messages or control sequences
+					log.Printf("Received message type %d, length: %d", messageType, len(message))
 				}
 
 				// Process the input
 				if err := ptyBridge.ProcessInput(message); err != nil {
 					log.Printf("Error processing input: %v", err)
-					break
+					// Don't break on processing errors, try to continue
+					// Only break if it's a fatal error
+					if err == io.EOF || err == io.ErrClosedPipe {
+						break
+					}
 				}
 			}
 		}
@@ -96,35 +103,61 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 		// Buffer for reading from the PTY
 		buf := make([]byte, 4096)
 
+		// Use a ticker to prevent CPU spinning in case of errors
+		ticker := time.NewTicker(5 * time.Millisecond)
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ptyBridge.Done():
 				log.Println("PTY bridge done, exiting writer goroutine")
 				return
-			default:
+			case <-ticker.C:
+				// Continue with read operation
 			}
 
-			// Try to read from the PTY with a timeout
+			// Try to read from the PTY
 			n, err := ptyBridge.Read(buf)
+
 			if err != nil {
 				if err == io.EOF {
 					log.Println("PTY closed (EOF), exiting writer goroutine")
 					return
 				}
+
+				// Handle other errors
 				log.Printf("PTY read error: %v", err)
-				return
+
+				// For transient errors, we'll continue after a short delay
+				// For permanent errors, we'll exit
+				if err == io.ErrClosedPipe || err == io.ErrUnexpectedEOF {
+					return
+				}
+
+				// For other errors, wait a bit before retrying
+				time.Sleep(100 * time.Millisecond)
+				continue
 			}
 
 			// If we read something, send it to the WebSocket
 			if n > 0 {
-				// Only log if more than 5 bytes to reduce log spam
-				if n > 5 {
+				// Reduce logging to avoid spam
+				if n > 100 {
 					log.Printf("Read %d bytes from PTY, sending to WebSocket", n)
 				}
+
+				// Set a write deadline and send the data
 				conn.SetWriteDeadline(time.Now().Add(writeWait))
 				if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
 					log.Printf("WebSocket write error: %v", err)
-					return
+
+					// Check if it's a fatal error
+					if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+						return
+					}
+
+					// For other errors, wait a bit before continuing
+					time.Sleep(100 * time.Millisecond)
 				}
 			}
 		}
