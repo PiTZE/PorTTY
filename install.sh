@@ -210,13 +210,16 @@ if [ -f "$SERVICE_FILE" ]; then
   if grep -q "ExecStart=" "$SERVICE_FILE"; then
     CURRENT_CONFIG=$(grep "ExecStart=" "$SERVICE_FILE" | sed 's/ExecStart=.*portty run //')
     if [[ "$CURRENT_CONFIG" =~ ([^:]+):([0-9]+) ]]; then
+      CURRENT_INTERFACE="${BASH_REMATCH[1]}"
+      CURRENT_PORT="${BASH_REMATCH[2]}"
+      
+      # Only use current interface as default if not specified via command line
       if [ -z "$INTERFACE" ]; then
-        DEFAULT_INTERFACE="${BASH_REMATCH[1]}"
+        DEFAULT_INTERFACE="${CURRENT_INTERFACE}"
       fi
-      if [ -z "$PORT" ]; then
-        DEFAULT_PORT="${BASH_REMATCH[2]}"
-      fi
-      echo "Current configuration: Interface=$DEFAULT_INTERFACE, Port=$DEFAULT_PORT"
+      
+      # Always show current configuration but keep 7314 as the default port
+      echo "Current configuration: Interface=${CURRENT_INTERFACE}, Port=${CURRENT_PORT}"
     fi
   fi
 fi

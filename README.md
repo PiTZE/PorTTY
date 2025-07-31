@@ -62,13 +62,13 @@ nix-shell
 ./portty run
 
 # Start on a specific address
-./portty run localhost:8080
+./portty run localhost:7314
 
-# Start on all interfaces, port 8080
-./portty run :8080
+# Start on all interfaces, port 7314
+./portty run :7314
 
 # Start on a specific interface and port
-./portty run 0.0.0.0:8080
+./portty run 0.0.0.0:7314
 ```
 
 ### Stopping the Server
@@ -86,8 +86,7 @@ nix-shell
 ### Accessing the Terminal
 
 Once the server is running, open your browser to:
-- `http://localhost:7314` (if using default port)
-- `http://localhost:8080` (if using port 8080)
+- `http://localhost:7314` (default port)
 - Or whatever address you configured
 
 ## How It Works
@@ -183,7 +182,7 @@ brew install tmux
 If the default port is already in use:
 ```bash
 # Use a different port
-./portty run localhost:8080
+./portty run localhost:8000
 ```
 
 ### Session Issues
