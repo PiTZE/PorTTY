@@ -18,7 +18,7 @@ This is the initial release of PorTTY, a standalone Go binary that serves a brow
 ### Quick Install
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh)"
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh)
 ```
 
 Then access your terminal at: http://your-server-ip:7314
