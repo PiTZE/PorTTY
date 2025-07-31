@@ -3,13 +3,10 @@ package ptybridge
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/exec"
 	"sync"
-	"syscall"
-	"time"
 
 	"github.com/creack/pty"
 )
@@ -111,58 +108,16 @@ func checkSessionExists(sessionName string) bool {
 
 // Read reads from the PTY
 func (p *PTYBridge) Read(b []byte) (int, error) {
-	// Use a timeout to prevent deadlocks
-	readChan := make(chan readResult, 1)
-
-	go func() {
-		p.mu.Lock()
-		defer p.mu.Unlock()
-		n, err := p.pty.Read(b)
-		readChan <- readResult{n: n, err: err}
-	}()
-
-	// Wait for the read to complete with a timeout
-	select {
-	case result := <-readChan:
-		return result.n, result.err
-	case <-time.After(5 * time.Second):
-		// If we timeout, return a temporary error
-		return 0, fmt.Errorf("read timeout")
-	}
-}
-
-// readResult holds the result of a read operation
-type readResult struct {
-	n   int
-	err error
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.pty.Read(b)
 }
 
 // Write writes to the PTY
 func (p *PTYBridge) Write(b []byte) (int, error) {
-	// Use a timeout to prevent deadlocks
-	writeChan := make(chan writeResult, 1)
-
-	go func() {
-		p.mu.Lock()
-		defer p.mu.Unlock()
-		n, err := p.pty.Write(b)
-		writeChan <- writeResult{n: n, err: err}
-	}()
-
-	// Wait for the write to complete with a timeout
-	select {
-	case result := <-writeChan:
-		return result.n, result.err
-	case <-time.After(5 * time.Second):
-		// If we timeout, return a temporary error
-		return 0, fmt.Errorf("write timeout")
-	}
-}
-
-// writeResult holds the result of a write operation
-type writeResult struct {
-	n   int
-	err error
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.pty.Write(b)
 }
 
 // ProcessInput processes input from the client
@@ -188,44 +143,20 @@ func (p *PTYBridge) ProcessInput(data []byte) error {
 		}
 	}
 
-	// Apply basic sanitization to prevent security issues
-	// but preserve all terminal control sequences
-	sanitized := sanitizeInput(data)
-
-	// Write the data to the PTY
-	n, err := p.Write(sanitized)
-	if err != nil {
-		log.Printf("Error writing to PTY: %v", err)
-	} else if n != len(sanitized) {
-		log.Printf("Warning: Only wrote %d of %d bytes to PTY", n, len(sanitized))
-	}
-
+	// Write the data directly to the PTY without sanitization
+	// This avoids breaking terminal control sequences
+	_, err := p.Write(data)
 	return err
 }
 
 // Resize resizes the PTY
 func (p *PTYBridge) Resize(rows, cols int) error {
-	// Use a timeout to prevent deadlocks
-	resizeChan := make(chan error, 1)
-
-	go func() {
-		p.mu.Lock()
-		defer p.mu.Unlock()
-		err := pty.Setsize(p.pty, &pty.Winsize{
-			Rows: uint16(rows),
-			Cols: uint16(cols),
-		})
-		resizeChan <- err
-	}()
-
-	// Wait for the resize to complete with a timeout
-	select {
-	case err := <-resizeChan:
-		return err
-	case <-time.After(5 * time.Second):
-		// If we timeout, return a temporary error
-		return fmt.Errorf("resize timeout")
-	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return pty.Setsize(p.pty, &pty.Winsize{
+		Rows: uint16(rows),
+		Cols: uint16(cols),
+	})
 }
 
 // Close closes the PTY but keeps the tmux session alive
@@ -243,47 +174,15 @@ func (p *PTYBridge) Close() error {
 		close(p.done)
 	}
 
-	// We don't kill the tmux session anymore, as it's shared between clients
+	// We don't kill the tmux session, as it's shared between clients
+	// We also don't kill the client process, as it would terminate the tmux session
 	log.Printf("Client disconnected from tmux session: %s", p.sessionName)
 
-	// Kill the client process (not the session)
-	if p.cmd.Process != nil {
-		p.cmd.Process.Signal(syscall.SIGTERM)
-		p.cmd.Process.Kill()
-	}
-
-	// Close the PTY
+	// Just close the PTY
 	return p.pty.Close()
 }
 
 // Done returns a channel that's closed when the PTY is closed
 func (p *PTYBridge) Done() <-chan struct{} {
 	return p.done
-}
-
-// Copy copies data from the reader to the PTY
-func (p *PTYBridge) Copy(dst io.Writer) {
-	io.Copy(dst, p.pty)
-}
-
-// sanitizeInput sanitizes input to prevent security issues
-// This is a simplified implementation that allows all common terminal control sequences
-func sanitizeInput(data []byte) []byte {
-	// For security reasons, we'll still do basic filtering
-	// but we'll be much more permissive to avoid breaking terminal functionality
-
-	// Quick check for empty data
-	if len(data) == 0 {
-		return data
-	}
-
-	// Check for extremely large inputs that might be malicious
-	if len(data) > 8192 {
-		// Truncate to a reasonable size
-		data = data[:8192]
-	}
-
-	// For most terminal input, we'll just pass it through
-	// This avoids complex parsing that could break escape sequences
-	return data
 }
