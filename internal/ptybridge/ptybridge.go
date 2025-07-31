@@ -3,6 +3,7 @@ package ptybridge
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -15,9 +16,9 @@ import (
 type PTYBridge struct {
 	cmd         *exec.Cmd
 	pty         *os.File
-	mu          sync.Mutex
 	done        chan struct{}
 	sessionName string
+	// Removed mutex for better performance
 }
 
 // Global session name for all connections
@@ -106,17 +107,13 @@ func checkSessionExists(sessionName string) bool {
 	return err == nil
 }
 
-// Read reads from the PTY
+// Read reads from the PTY directly
 func (p *PTYBridge) Read(b []byte) (int, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	return p.pty.Read(b)
 }
 
-// Write writes to the PTY
+// Write writes to the PTY directly
 func (p *PTYBridge) Write(b []byte) (int, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	return p.pty.Write(b)
 }
 
@@ -130,7 +127,8 @@ func (p *PTYBridge) ProcessInput(data []byte) error {
 			case "resize":
 				var resizeMsg ResizeMessage
 				if err := json.Unmarshal(data, &resizeMsg); err == nil {
-					log.Printf("Resizing terminal to %d rows, %d cols", resizeMsg.Dimensions.Rows, resizeMsg.Dimensions.Cols)
+					// Only log resize events for debugging
+					// log.Printf("Resizing terminal to %d rows, %d cols", resizeMsg.Dimensions.Rows, resizeMsg.Dimensions.Cols)
 					return p.Resize(resizeMsg.Dimensions.Rows, resizeMsg.Dimensions.Cols)
 				} else {
 					log.Printf("Error parsing resize message: %v", err)
@@ -143,16 +141,14 @@ func (p *PTYBridge) ProcessInput(data []byte) error {
 		}
 	}
 
-	// Write the data directly to the PTY without sanitization
-	// This avoids breaking terminal control sequences
+	// Write the data directly to the PTY without any processing
+	// This is the fastest path for terminal input
 	_, err := p.Write(data)
 	return err
 }
 
-// Resize resizes the PTY
+// Resize resizes the PTY directly
 func (p *PTYBridge) Resize(rows, cols int) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	return pty.Setsize(p.pty, &pty.Winsize{
 		Rows: uint16(rows),
 		Cols: uint16(cols),
@@ -161,9 +157,6 @@ func (p *PTYBridge) Resize(rows, cols int) error {
 
 // Close closes the PTY but keeps the tmux session alive
 func (p *PTYBridge) Close() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	// Use a flag to prevent double-closing
 	select {
 	case <-p.done:
@@ -185,4 +178,9 @@ func (p *PTYBridge) Close() error {
 // Done returns a channel that's closed when the PTY is closed
 func (p *PTYBridge) Done() <-chan struct{} {
 	return p.done
+}
+
+// Copy copies data from the reader to the PTY
+func (p *PTYBridge) Copy(dst io.Writer) {
+	io.Copy(dst, p.pty)
 }
