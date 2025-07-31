@@ -18,7 +18,7 @@ This is the initial release of PorTTY, a standalone Go binary that serves a brow
 ### Quick Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | sudo bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh)"
 ```
 
 Then access your terminal at: http://your-server-ip:7314
@@ -38,6 +38,7 @@ This release includes several performance optimizations:
 - Implemented message buffering with channels to prevent blocking
 - Added debounced resize handling to reduce unnecessary resize events
 - Optimized terminal settings for better rendering performance
+- Improved installation script with better compatibility across different environments
 
 ## Known Issues
 
