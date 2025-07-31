@@ -50,6 +50,10 @@ temp/
 # Downloaded Go distributions
 go*.tar.gz
 
+# Release archives
+*.tar.gz
+*.tar.gz.sha256
+
 # Build artifacts
 /dist/
 /bin/
