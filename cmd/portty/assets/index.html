@@ -12,43 +12,10 @@
     <div id="terminal-container"></div>
     <!-- Load xterm.js core -->
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
-    <!-- Load the addons with explicit global exports -->
-    <script>
-        // Load FitAddon
-        (function() {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.8.0/lib/addon-fit.js';
-            script.onload = function() {
-                // Make FitAddon globally available
-                window.FitAddon = window.FitAddon || {};
-                if (window.FitAddon) {
-                    window.FitAddon = window.FitAddon.FitAddon || window.FitAddon;
-                }
-            };
-            document.head.appendChild(script);
-        })();
-        
-        // Load AttachAddon
-        (function() {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/@xterm/addon-attach@0.8.0/lib/addon-attach.js';
-            script.onload = function() {
-                // Make AttachAddon globally available
-                window.AttachAddon = window.AttachAddon || {};
-                if (window.AttachAddon) {
-                    window.AttachAddon = window.AttachAddon.AttachAddon || window.AttachAddon;
-                }
-            };
-            document.head.appendChild(script);
-        })();
-    </script>
-    <!-- Load our script after a short delay to ensure addons are loaded -->
-    <script>
-        setTimeout(function() {
-            const script = document.createElement('script');
-            script.src = '/terminal.js';
-            document.head.appendChild(script);
-        }, 100);
-    </script>
+    <!-- Load the correct addon versions for xterm.js 5.5.0 -->
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-attach@0.11.0/lib/addon-attach.js"></script>
+    <!-- Load our script -->
+    <script src="/terminal.js"></script>
 </body>
 </html>
