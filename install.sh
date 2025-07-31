@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# PorTTY Installer
-# This script downloads and installs PorTTY v0.1 as a systemd service
+# PorTTY Installer/Uninstaller
+# This script can install, update, or uninstall PorTTY
 
 # Colors for output
 RED='\033[0;31m'
@@ -16,10 +16,60 @@ DEFAULT_PORT="7314"
 DEFAULT_INTERFACE="0.0.0.0"
 INSTALL_DIR="/usr/local/bin"
 SERVICE_FILE="/etc/systemd/system/portty.service"
+BINARY_FILE="$INSTALL_DIR/portty"
 IS_UPDATE=false
+MODE="install" # Default mode is install
 
-echo -e "${GREEN}PorTTY Installer${NC}"
-echo "This script will install PorTTY v0.1 and set it up as a systemd service."
+# Function to uninstall PorTTY
+uninstall_portty() {
+  echo -e "${YELLOW}Uninstalling PorTTY...${NC}"
+  
+  # Check if systemd service exists
+  if [ -f "$SERVICE_FILE" ]; then
+    echo "Stopping and removing PorTTY service..."
+    systemctl stop portty.service 2>/dev/null || true
+    systemctl disable portty.service 2>/dev/null || true
+    rm -f "$SERVICE_FILE"
+    systemctl daemon-reload
+    echo "PorTTY service has been removed."
+  else
+    echo "No PorTTY service found."
+  fi
+  
+  # Remove binary
+  if [ -f "$BINARY_FILE" ]; then
+    echo "Removing PorTTY binary..."
+    rm -f "$BINARY_FILE"
+    echo "PorTTY binary has been removed."
+  else
+    echo "No PorTTY binary found at $BINARY_FILE."
+  fi
+  
+  echo -e "${GREEN}PorTTY has been completely uninstalled from your system.${NC}"
+  exit 0
+}
+
+# Parse command line arguments
+if [ "$1" = "--uninstall" ] || [ "$1" = "-u" ]; then
+  MODE="uninstall"
+fi
+
+# Display header based on mode
+if [ "$MODE" = "install" ]; then
+  echo -e "${GREEN}PorTTY Installer${NC}"
+  echo "This script will install PorTTY v0.1 and set it up as a systemd service."
+  echo "Use '$0 --uninstall' to remove PorTTY from your system."
+else
+  echo -e "${YELLOW}PorTTY Uninstaller${NC}"
+  echo "This will completely remove PorTTY from your system."
+  read -p "Are you sure you want to uninstall PorTTY? [y/N] " confirm
+  if [[ "$confirm" != [yY] && "$confirm" != [yY][eE][sS] ]]; then
+    echo "Uninstall cancelled."
+    exit 0
+  fi
+  uninstall_portty
+fi
+
 echo ""
 
 # Check if running as root
@@ -161,5 +211,8 @@ echo ""
 echo "If you're running a firewall, make sure port $PORT is open:"
 echo "  - UFW: sudo ufw allow $PORT/tcp"
 echo "  - FirewallD: sudo firewall-cmd --permanent --add-port=$PORT/tcp && sudo firewall-cmd --reload"
+echo ""
+echo "To uninstall PorTTY in the future, run:"
+echo "  sudo $0 --uninstall"
 echo ""
 echo "Enjoy using PorTTY!"
