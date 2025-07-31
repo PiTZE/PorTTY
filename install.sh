@@ -313,7 +313,6 @@ create_service_file() {
 [Unit]
 Description=PorTTY Terminal Server
 After=network.target
-
 [Service]
 Type=simple
 User=root
@@ -323,11 +322,9 @@ Restart=always
 RestartSec=5
 StandardOutput=append:$RUNTIME_LOG
 StandardError=append:$RUNTIME_LOG
-
 [Install]
 WantedBy=multi-user.target
 EOF
-
     if [ $? -eq 0 ]; then
         log_install "Service file created successfully ✓"
         return 0
@@ -863,7 +860,7 @@ parse_arguments() {
                     DEFAULT_INTERFACE="$2"
                     shift 2
                 else
-                    log_error "Argument for $1 is missing"
+                    echo "Error: Argument for $1 is missing" >&2
                     exit 1
                 fi
                 ;;
@@ -873,11 +870,11 @@ parse_arguments() {
                         DEFAULT_PORT="$2"
                         shift 2
                     else
-                        log_error "Invalid port number: $2"
+                        echo "Error: Invalid port number: $2" >&2
                         exit 1
                     fi
                 else
-                    log_error "Argument for $1 is missing"
+                    echo "Error: Argument for $1 is missing" >&2
                     exit 1
                 fi
                 ;;
@@ -887,7 +884,7 @@ parse_arguments() {
                     BINARY_FILE="$INSTALL_DIR/portty"
                     shift 2
                 else
-                    log_error "Argument for $1 is missing"
+                    echo "Error: Argument for $1 is missing" >&2
                     exit 1
                 fi
                 ;;
@@ -909,11 +906,11 @@ parse_arguments() {
                 break
                 ;;
             -*)
-                log_error "Unknown option: $1"
+                echo "Error: Unknown option: $1" >&2
                 show_help
                 ;;
             *)
-                log_error "Unknown argument: $1"
+                echo "Error: Unknown argument: $1" >&2
                 show_help
                 ;;
         esac
@@ -922,14 +919,14 @@ parse_arguments() {
 
 # Main script logic
 main() {
+    # Parse arguments first to handle --help and --version without side effects
+    parse_arguments "$@"
+    
     # Save the script PID for cleanup
     echo $$ > "$PID_FILE"
     
-    # Ensure directories exist
+    # Ensure directories exist only after we know we're not just showing help/version
     ensure_directories
-    
-    # Parse arguments
-    parse_arguments "$@"
     
     # If no command specified, default to interactive mode
     if [ "$MODE" = "install" ] && [ $# -eq 0 ]; then
