@@ -24,8 +24,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     const socket = new WebSocket(wsUrl);
     
-    const fitAddon = new FitAddon();
-    const attachAddon = new AttachAddon(socket);
+    // Use the correct way to access the addons from the CDN
+    // The addons are attached to the window object
+    const fitAddon = new window.FitAddon.FitAddon();
+    const attachAddon = new window.AttachAddon.AttachAddon(socket);
     
     term.loadAddon(fitAddon);
     term.loadAddon(attachAddon);
