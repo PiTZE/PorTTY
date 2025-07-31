@@ -182,17 +182,6 @@ When installed via install.sh, you can configure logging behavior:
 export PORTTY_LOG_LEVEL=DEBUG  # DEBUG, INFO, WARNING, ERROR, FATAL
 ```
 
-## Performance Optimizations
-
-PorTTY v0.1 includes several performance optimizations:
-
-- Removed mutex locking in PTY operations for better throughput
-- Increased buffer sizes (16KB) for improved data transfer
-- Implemented message buffering with channels to prevent blocking
-- Added debounced resize handling to reduce unnecessary resize events
-- Optimized terminal settings for better rendering performance
-- Enhanced WebSocket buffer sizes for better real-time communication
-
 ## Dependencies
 
 ### Runtime Dependencies
