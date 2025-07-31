@@ -5,7 +5,14 @@ A standalone Go binary that serves a browser-based shell terminal with tmux inte
 ## Quick Install
 
 ```bash
+# Option 1: Standard method
 curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | sudo bash
+
+# Option 2: Alternative method (more reliable in some environments)
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh)"
+
+# Option 3: Using wget instead of curl
+wget -O - https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | sudo bash
 ```
 
 Then access your terminal at: http://your-server-ip:7314
@@ -35,17 +42,31 @@ Then access your terminal at: http://your-server-ip:7314
 
 The install.sh script provides a comprehensive installation experience:
 
-Basic installation (interactive mode)
+#### Interactive Installation
+
 ```bash
+# Using curl | bash
 curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | sudo bash
+
+# Alternative method (more reliable)
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh)"
+
+# Using wget
+wget -O - https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | sudo bash
 ```
 
-Non-interactive installation with custom settings
+#### Non-interactive Installation with Custom Settings
+
 ```bash
+# Using curl | bash with parameters
 curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | sudo bash -s -- -i 0.0.0.0 -p 8080 -y
+
+# Alternative method with parameters
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh) -i 0.0.0.0 -p 8080 -y"
 ```
 
-Show all available options
+#### Show All Available Options
+
 ```bash
 curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | bash -s -- --help
 ```
