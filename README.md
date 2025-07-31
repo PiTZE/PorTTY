@@ -1,6 +1,14 @@
-# PorTTY
+# PorTTY v0.1
 
 A standalone Go binary that serves a browser-based shell terminal with tmux integration.
+
+## Quick Install
+
+```bash
+curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | sudo bash
+```
+
+Then access your terminal at: http://your-server-ip:7314
 
 ## Features
 
