@@ -35,27 +35,27 @@ Then access your terminal at: http://your-server-ip:7314
 
 The install.sh script provides a comprehensive installation experience:
 
+Basic installation (interactive mode)
 ```bash
-# Basic installation (interactive mode)
 curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | sudo bash
 ```
 
+Non-interactive installation with custom settings
 ```bash
-# Non-interactive installation with custom settings
 curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | sudo bash -s -- -i 0.0.0.0 -p 8080 -y
 ```
 
+Show all available options
 ```bash
-# Show all available options
 curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | bash -s -- --help
 ```
 
 ### Building from Source
 
 ```bash
-# The binary will be created as 'portty' in the current directory
 git clone https://github.com/PiTZE/PorTTY.git && cd PorTTY && ./build.sh
 ```
+The binary will be created as 'portty' in the current directory
 
 ### Nix Environment (Optional)
 
