@@ -10,6 +10,16 @@ else
   SCRIPT_NAME=$(basename "$0")
 fi
 
+# Check if running in an interactive terminal
+if [ -t 0 ]; then
+  IS_INTERACTIVE_TERMINAL=true
+else
+  IS_INTERACTIVE_TERMINAL=false
+  # When piped from curl, we should use non-interactive mode
+  INTERACTIVE=false
+  YES_FLAG=true
+fi
+
 # Trap signals for graceful shutdown
 trap 'cleanup EXIT' EXIT
 trap 'cleanup SIGINT' SIGINT
@@ -359,25 +369,35 @@ install_portty() {
     # Download binary
     download_binary || return 1
     
-    # Create service file
-    create_service_file "$interface" "$port" || return 1
-    
-    # Reload systemd and enable service
-    systemctl daemon-reload
-    systemctl enable portty.service
-    
-    # Start the service
-    systemctl start portty.service
-    
-    # Check if service started successfully
-    if systemctl is-active --quiet portty.service; then
-        log_install "PorTTY service is running! ✓"
+    # Check if systemd is available
+    if command -v systemctl &> /dev/null; then
+        # Create service file
+        create_service_file "$interface" "$port" || return 1
+        
+        # Reload systemd and enable service
+        systemctl daemon-reload
+        systemctl enable portty.service
+        
+        # Start the service
+        systemctl start portty.service
+        
+        # Check if service started successfully
+        if systemctl is-active --quiet portty.service; then
+            log_install "PorTTY service is running! ✓"
+            log_install "Installation completed successfully ✓"
+            return 0
+        else
+            log_install_error "PorTTY service failed to start"
+            log_install_error "Check logs with: journalctl -u portty"
+            return 1
+        fi
+    else
+        # Systemd not available, just report success for the binary installation
+        log_install "Systemd not detected. Service installation skipped."
+        log_install "PorTTY binary installed at: $BINARY_FILE"
+        log_install "To start PorTTY manually, run: $BINARY_FILE run $interface:$port"
         log_install "Installation completed successfully ✓"
         return 0
-    else
-        log_install_error "PorTTY service failed to start"
-        log_install_error "Check logs with: journalctl -u portty"
-        return 1
     fi
 }
 
@@ -388,10 +408,12 @@ uninstall_portty() {
     # Stop and disable service if it exists
     if [ -f "$SERVICE_FILE" ]; then
         log_info "Stopping and removing PorTTY service..."
-        systemctl stop portty.service 2>/dev/null || true
-        systemctl disable portty.service 2>/dev/null || true
+        if command -v systemctl &> /dev/null; then
+            systemctl stop portty.service 2>/dev/null || true
+            systemctl disable portty.service 2>/dev/null || true
+            systemctl daemon-reload
+        fi
         rm -f "$SERVICE_FILE"
-        systemctl daemon-reload
         log_info "PorTTY service has been removed."
     else
         log_info "No PorTTY service found."
@@ -436,28 +458,37 @@ update_portty() {
         return 1
     fi
     
-    # Stop the service
-    systemctl stop portty.service 2>/dev/null || true
-    
-    # Get current configuration
-    local current_config=""
-    if [ -f "$SERVICE_FILE" ]; then
-        current_config=$(grep "ExecStart=" "$SERVICE_FILE" | sed 's/ExecStart=.*portty run //')
+    # Check if systemd is available
+    if command -v systemctl &> /dev/null; then
+        # Stop the service
+        systemctl stop portty.service 2>/dev/null || true
+        
+        # Get current configuration
+        local current_config=""
+        if [ -f "$SERVICE_FILE" ]; then
+            current_config=$(grep "ExecStart=" "$SERVICE_FILE" | sed 's/ExecStart=.*portty run //')
+        fi
     fi
     
     # Download new binary
     FORCE_UPDATE=true
     download_binary || return 1
     
-    # Restart service
-    systemctl start portty.service
-    
-    if systemctl is-active --quiet portty.service; then
+    # Restart service if systemd is available
+    if command -v systemctl &> /dev/null; then
+        systemctl start portty.service
+        
+        if systemctl is-active --quiet portty.service; then
+            log_info "PorTTY updated successfully ✓"
+            return 0
+        else
+            log_error "Failed to restart PorTTY after update"
+            return 1
+        fi
+    else
+        log_info "Systemd not detected. Service not restarted."
         log_info "PorTTY updated successfully ✓"
         return 0
-    else
-        log_error "Failed to restart PorTTY after update"
-        return 1
     fi
 }
 
@@ -665,6 +696,19 @@ show_config() {
 
 # Interactive menu functions
 show_main_menu() {
+    # If not running in an interactive terminal, use non-interactive mode
+    if [ "$IS_INTERACTIVE_TERMINAL" = false ]; then
+        log_info "Running in non-interactive mode. Using default installation."
+        if check_root && check_tmux && install_portty "$DEFAULT_INTERFACE" "$DEFAULT_PORT"; then
+            log_info "PorTTY installed successfully!"
+            echo "Access PorTTY at: http://$DEFAULT_INTERFACE:$DEFAULT_PORT"
+        else
+            log_error "Installation failed!"
+            exit 1
+        fi
+        return
+    fi
+
     while true; do
         clear
         echo -e "${BOLD}PorTTY Application Manager${NC}"
@@ -942,7 +986,10 @@ main() {
     
     # If no command specified, default to interactive mode
     if [ "$MODE" = "install" ] && [ $# -eq 0 ]; then
-        INTERACTIVE=true
+        # Only set interactive mode if we're in an interactive terminal
+        if [ "$IS_INTERACTIVE_TERMINAL" = true ]; then
+            INTERACTIVE=true
+        fi
     fi
     
     # Execute based on mode
