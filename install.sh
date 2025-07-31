@@ -25,20 +25,38 @@ YES_FLAG=false # For non-interactive confirmation
 
 # Function to display help
 show_help() {
-  echo "Usage: $0 [OPTIONS]"
+  echo "PorTTY Installer/Uninstaller v0.1"
+  echo "Install, update, or remove PorTTY terminal server"
   echo ""
-  echo "Options:"
+  echo "USAGE:"
+  echo "  $0 [OPTIONS]"
+  echo ""
+  echo "OPTIONS:"
   echo "  -h, --help                 Show this help message"
+  echo "  -v, --version              Display version information"
   echo "  -u, --uninstall            Uninstall PorTTY"
   echo "  -y, --yes                  Automatic yes to prompts (non-interactive mode)"
   echo "  -i, --interface INTERFACE  Specify interface to bind to (localhost or 0.0.0.0)"
+  echo "                             Default: $DEFAULT_INTERFACE"
   echo "  -p, --port PORT            Specify port to listen on (1-65535)"
+  echo "                             Default: $DEFAULT_PORT"
+  echo "  -d, --directory DIR        Specify installation directory"
+  echo "                             Default: $INSTALL_DIR"
   echo ""
-  echo "Examples:"
+  echo "EXAMPLES:"
   echo "  $0                         # Interactive installation"
   echo "  $0 -i localhost -p 8080    # Install with specific interface and port"
   echo "  $0 -u -y                   # Uninstall without confirmation prompt"
   echo "  $0 -i 0.0.0.0 -p 9000 -y   # Non-interactive installation with specific settings"
+  echo "  $0 -d /opt/portty          # Install to custom directory"
+  echo ""
+  echo "For more information, visit: https://github.com/PiTZE/PorTTY"
+  exit 0
+}
+
+# Function to display version
+show_version() {
+  echo "PorTTY Installer/Uninstaller v0.1"
   exit 0
 }
 
@@ -77,6 +95,9 @@ while [[ $# -gt 0 ]]; do
     -h|--help)
       show_help
       ;;
+    -v|--version)
+      show_version
+      ;;
     -u|--uninstall)
       MODE="uninstall"
       shift
@@ -111,8 +132,28 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       ;;
-    *)
+    -d|--directory)
+      if [[ -n "$2" && "$2" != -* ]]; then
+        INSTALL_DIR="$2"
+        BINARY_FILE="$INSTALL_DIR/portty"
+        shift 2
+      else
+        echo -e "${RED}Error: Argument for $1 is missing${NC}"
+        exit 1
+      fi
+      ;;
+    --)
+      # End of options
+      shift
+      break
+      ;;
+    -*)
       echo -e "${RED}Error: Unknown option: $1${NC}"
+      show_help
+      ;;
+    *)
+      # Unknown positional argument
+      echo -e "${RED}Error: Unknown argument: $1${NC}"
       show_help
       ;;
   esac
@@ -216,15 +257,31 @@ echo ""
 
 # Create installation directory if it doesn't exist
 if [ "$IS_UPDATE" = false ]; then
-  echo "Creating installation directory..."
+  echo "Creating installation directory ($INSTALL_DIR)..."
   mkdir -p "$INSTALL_DIR"
 
   # Download PorTTY binary
   echo "Downloading PorTTY v0.1..."
-  curl -L -o "$INSTALL_DIR/portty" "https://github.com/PiTZE/PorTTY/releases/download/v0.1/portty"
-  chmod +x "$INSTALL_DIR/portty"
+  curl -L -o "$BINARY_FILE" "https://github.com/PiTZE/PorTTY/releases/download/v0.1/portty"
+  chmod +x "$BINARY_FILE"
 else
-  echo "Keeping existing PorTTY binary..."
+  # If installation directory has changed, move the binary
+  if [ ! -f "$BINARY_FILE" ]; then
+    echo "Moving PorTTY binary to new location ($INSTALL_DIR)..."
+    mkdir -p "$INSTALL_DIR"
+    # Find the existing binary
+    EXISTING_BINARY=$(which portty 2>/dev/null || echo "/usr/local/bin/portty")
+    if [ -f "$EXISTING_BINARY" ]; then
+      cp "$EXISTING_BINARY" "$BINARY_FILE"
+      chmod +x "$BINARY_FILE"
+    else
+      echo "Downloading PorTTY v0.1 to new location..."
+      curl -L -o "$BINARY_FILE" "https://github.com/PiTZE/PorTTY/releases/download/v0.1/portty"
+      chmod +x "$BINARY_FILE"
+    fi
+  else
+    echo "Keeping existing PorTTY binary..."
+  fi
 fi
 
 # Create or update systemd service file
@@ -241,7 +298,7 @@ Description=PorTTY Terminal Server
 After=network.target
 
 [Service]
-ExecStart=$INSTALL_DIR/portty run $INTERFACE:$PORT
+ExecStart=$BINARY_FILE run $INTERFACE:$PORT
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -279,7 +336,7 @@ EOF
 else
   echo -e "${YELLOW}Systemd not detected. Installing as standalone binary only.${NC}"
   echo "You can start PorTTY manually with:"
-  echo "  $INSTALL_DIR/portty run $INTERFACE:$PORT"
+  echo "  $BINARY_FILE run $INTERFACE:$PORT"
 fi
 
 echo ""

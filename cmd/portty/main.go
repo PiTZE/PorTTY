@@ -40,6 +40,18 @@ func main() {
 	}
 	pidFilePath := filepath.Join(homeDir, PidFileName)
 
+	// Check for global help and version flags first
+	for _, arg := range os.Args {
+		if arg == "-h" || arg == "--help" {
+			showHelp()
+			return
+		}
+		if arg == "-v" || arg == "--version" {
+			showVersion()
+			return
+		}
+	}
+
 	// Parse command line arguments
 	if len(os.Args) < 2 {
 		showHelp()
@@ -51,15 +63,70 @@ func main() {
 	// Handle commands
 	switch command {
 	case "run":
+		// Process run command options
 		address := DefaultAddress
-		if len(os.Args) > 2 {
-			address = os.Args[2]
+		
+		// Skip the first two arguments (program name and "run" command)
+		args := os.Args[2:]
+		for i := 0; i < len(args); i++ {
+			arg := args[i]
+			
+			switch arg {
+			case "-h", "--help":
+				showRunHelp()
+				return
+			case "-a", "--address":
+				if i+1 < len(args) {
+					address = args[i+1]
+					i++ // Skip the next argument
+				}
+			case "-p", "--port":
+				if i+1 < len(args) {
+					port := args[i+1]
+					// Extract host from current address
+					host, _, err := net.SplitHostPort(address)
+					if err != nil {
+						host = "localhost"
+					}
+					if host == "" {
+						host = "localhost"
+					}
+					address = fmt.Sprintf("%s:%s", host, port)
+					i++ // Skip the next argument
+				}
+			default:
+				// If it doesn't start with a dash, treat it as the address
+				if !strings.HasPrefix(arg, "-") {
+					address = arg
+				}
+			}
 		}
+		
 		runServer(address, pidFilePath)
 	case "stop":
+		// Check if the stop command has a help flag
+		if len(os.Args) > 2 && (os.Args[2] == "-h" || os.Args[2] == "--help") {
+			showStopHelp()
+			return
+		}
 		stopServer(pidFilePath)
-	case "help", "--help", "-h":
-		showHelp()
+	case "help":
+		if len(os.Args) > 2 {
+			// Show help for specific command
+			switch os.Args[2] {
+			case "run":
+				showRunHelp()
+			case "stop":
+				showStopHelp()
+			default:
+				fmt.Printf("Unknown command: %s\n\n", os.Args[2])
+				showHelp()
+			}
+		} else {
+			showHelp()
+		}
+	case "version":
+		showVersion()
 	default:
 		fmt.Printf("Unknown command: %s\n\n", command)
 		showHelp()
@@ -67,21 +134,101 @@ func main() {
 	}
 }
 
+// showRunHelp displays help for the run command
+func showRunHelp() {
+	programName := filepath.Base(os.Args[0])
+	
+	fmt.Println("PorTTY - Run Command")
+	fmt.Println("Start the PorTTY server")
+	fmt.Println()
+	
+	fmt.Println("USAGE:")
+	fmt.Printf("  %s run [OPTIONS] [address]\n", programName)
+	fmt.Println()
+	
+	fmt.Println("OPTIONS:")
+	fmt.Println("  -h, --help            Show this help message")
+	fmt.Println("  -a, --address ADDR    Specify the address to bind to (format: [host]:[port])")
+	fmt.Println("  -p, --port PORT       Specify the port to listen on")
+	fmt.Println()
+	
+	fmt.Println("ARGUMENTS:")
+	fmt.Println("  address               Address to bind to (format: [host]:[port])")
+	fmt.Printf("                        Default: %s\n", DefaultAddress)
+	fmt.Println()
+	
+	fmt.Println("EXAMPLES:")
+	fmt.Printf("  %s run                       # Start on localhost:7314\n", programName)
+	fmt.Printf("  %s run :8080                 # Start on all interfaces, port 8080\n", programName)
+	fmt.Printf("  %s run 0.0.0.0:8080          # Start on all interfaces, port 8080\n", programName)
+	fmt.Printf("  %s run -p 3000               # Start on localhost, port 3000\n", programName)
+	fmt.Printf("  %s run -a 0.0.0.0 -p 8080    # Start on all interfaces, port 8080\n", programName)
+	fmt.Printf("  %s run --address localhost --port 9000  # Start on localhost, port 9000\n", programName)
+}
+
+// showStopHelp displays help for the stop command
+func showStopHelp() {
+	programName := filepath.Base(os.Args[0])
+	
+	fmt.Println("PorTTY - Stop Command")
+	fmt.Println("Stop the running PorTTY server")
+	fmt.Println()
+	
+	fmt.Println("USAGE:")
+	fmt.Printf("  %s stop\n", programName)
+	fmt.Println()
+	
+	fmt.Println("DESCRIPTION:")
+	fmt.Println("  This command will gracefully stop the running PorTTY server.")
+	fmt.Println("  It first tries to find the server using the PID file, and if that fails,")
+	fmt.Println("  it attempts to find the process by name.")
+}
+
+// showVersion displays version information
+func showVersion() {
+	fmt.Println("PorTTY v0.1")
+	fmt.Println("A lightweight, web-based terminal emulator powered by tmux")
+	fmt.Println("https://github.com/PiTZE/PorTTY")
+}
+
 // showHelp displays usage information
 func showHelp() {
-	fmt.Println("PorTTY - Web-based Terminal")
+	programName := filepath.Base(os.Args[0])
+	version := "v0.1" // Version information
+
+	fmt.Printf("PorTTY %s - Web-based Terminal\n", version)
+	fmt.Println("A lightweight, web-based terminal emulator powered by tmux")
 	fmt.Println()
-	fmt.Println("Usage:")
-	fmt.Println("  ./portty run [address]    Start the server (default: localhost:7314)")
-	fmt.Println("  ./portty stop             Stop the server")
-	fmt.Println("  ./portty help             Show this help message")
+	
+	fmt.Println("USAGE:")
+	fmt.Printf("  %s [OPTIONS] COMMAND [ARGS]\n", programName)
 	fmt.Println()
-	fmt.Println("Examples:")
-	fmt.Println("  ./portty run              # Start on localhost:7314")
-	fmt.Println("  ./portty run :8080        # Start on all interfaces, port 8080")
-	fmt.Println("  ./portty run 0.0.0.0:8080 # Start on all interfaces, port 8080")
-	fmt.Println("  ./portty run localhost:3000 # Start on localhost, port 3000")
-	fmt.Println("  ./portty stop             # Stop the server")
+	
+	fmt.Println("OPTIONS:")
+	fmt.Println("  -h, --help     Show this help message and exit")
+	fmt.Println()
+	
+	fmt.Println("COMMANDS:")
+	fmt.Println("  run [address]  Start the server (default: localhost:7314)")
+	fmt.Println("  stop           Stop the server")
+	fmt.Println("  help           Show this help message")
+	fmt.Println()
+	
+	fmt.Println("RUN OPTIONS:")
+	fmt.Println("  address        Address to bind to (format: [host]:[port])")
+	fmt.Printf("                 Default: %s\n", DefaultAddress)
+	fmt.Println()
+	
+	fmt.Println("EXAMPLES:")
+	fmt.Printf("  %s run                    # Start on localhost:7314\n", programName)
+	fmt.Printf("  %s run :8080              # Start on all interfaces, port 8080\n", programName)
+	fmt.Printf("  %s run 0.0.0.0:8080       # Start on all interfaces, port 8080\n", programName)
+	fmt.Printf("  %s run localhost:3000     # Start on localhost, port 3000\n", programName)
+	fmt.Printf("  %s stop                   # Stop the server\n", programName)
+	fmt.Printf("  %s -h                     # Show this help message\n", programName)
+	fmt.Println()
+	
+	fmt.Println("For more information, visit: https://github.com/PiTZE/PorTTY")
 }
 
 // parseAddress parses the address and returns host and port
