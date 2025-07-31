@@ -688,7 +688,7 @@ show_main_menu() {
             4) logs_config_menu ;;
             5) return ;;
             *)
-                log_error "Invalid choice"
+                echo -e "${RED}Invalid choice. Please try again.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -746,7 +746,7 @@ installation_menu() {
                 ;;
             4) return ;;
             *)
-                log_error "Invalid choice"
+                echo -e "${RED}Invalid choice. Please try again.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -811,7 +811,7 @@ service_menu() {
                 ;;
             6) return ;;
             *)
-                log_error "Invalid choice"
+                echo -e "${RED}Invalid choice. Please try again.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -841,7 +841,7 @@ logs_config_menu() {
                 ;;
             3) return ;;
             *)
-                log_error "Invalid choice"
+                echo -e "${RED}Invalid choice. Please try again.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
