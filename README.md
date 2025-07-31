@@ -5,7 +5,7 @@ A standalone Go binary that serves a browser-based shell terminal with tmux inte
 ## Quick Install
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh)"
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh)
 ```
 
 Then access your terminal at: http://your-server-ip:7314
@@ -38,19 +38,19 @@ The install.sh script provides a comprehensive installation experience:
 #### Interactive Installation
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh)"
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh)
 ```
 
 #### Non-interactive Installation with Custom Settings
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh) -i 0.0.0.0 -p 8080 -y"
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh) -i 0.0.0.0 -p 8080 -y
 ```
 
 #### Show All Available Options
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh) --help"
+bash <(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh) --help
 ```
 
 ### Building from Source
