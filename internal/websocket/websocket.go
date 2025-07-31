@@ -23,12 +23,12 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 
 	// Maximum message size allowed from peer
-	maxMessageSize = 8192
+	maxMessageSize = 16384 // Increased from 8192 to 16KB for better performance
 )
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
+	ReadBufferSize:  4096, // Increased from 1024 to 4KB
+	WriteBufferSize: 4096, // Increased from 1024 to 4KB
 	// Allow all origins
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
@@ -58,6 +58,9 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create a buffered channel for messages
+	messageChan := make(chan []byte, 100)
+
 	// Set up WebSocket connection
 	conn.SetReadLimit(maxMessageSize)
 	conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -66,11 +69,11 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
-	// Start a goroutine to read from the WebSocket and write to the PTY
+	// Start a goroutine to read from the WebSocket
 	go func() {
 		defer wg.Done()
 		defer cancel()
-		defer ptyBridge.Close()
+		defer close(messageChan)
 
 		for {
 			select {
@@ -84,29 +87,46 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 						log.Printf("WebSocket read error: %v", err)
-					} else if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-						// Only log if it's not a normal closure
-						log.Printf("WebSocket connection closed: %v", err)
 					}
 					return
 				}
 
 				// Process both text and binary messages
 				if messageType == websocket.TextMessage || messageType == websocket.BinaryMessage {
-					// Only log if debug logging is needed
-					if len(message) > 0 && len(message) < 100 {
-						// Avoid logging large messages or control sequences
-						log.Printf("Received message type %d, length: %d", messageType, len(message))
+					// Send message to processing goroutine
+					select {
+					case messageChan <- message:
+						// Message sent successfully
+					default:
+						// Channel is full, log warning and drop message
+						log.Printf("Warning: Message channel full, dropping message")
 					}
+				}
+			}
+		}
+	}()
 
-					// Process the input
-					if err := ptyBridge.ProcessInput(message); err != nil {
-						log.Printf("Error processing input: %v", err)
-						// Don't break on processing errors, try to continue
-						// Only break if it's a fatal error
-						if err == io.EOF || err == io.ErrClosedPipe {
-							return
-						}
+	// Start a goroutine to process messages
+	go func() {
+		defer wg.Done()
+		defer ptyBridge.Close()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case message, ok := <-messageChan:
+				if !ok {
+					// Channel closed
+					return
+				}
+
+				// Process the input
+				if err := ptyBridge.ProcessInput(message); err != nil {
+					// Only log serious errors
+					if err == io.EOF || err == io.ErrClosedPipe {
+						log.Printf("Fatal error processing input: %v", err)
+						return
 					}
 				}
 			}
@@ -119,13 +139,12 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		defer conn.Close()
 
-		// Buffer for reading from the PTY
-		buf := make([]byte, 4096)
+		// Buffer for reading from the PTY - increased to 16KB
+		buf := make([]byte, 16384)
 
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println("Context done, exiting writer goroutine")
 				return
 			default:
 				// Try to read from the PTY
@@ -133,67 +152,32 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 
 				if err != nil {
 					if err == io.EOF {
-						log.Println("PTY closed (EOF), exiting writer goroutine")
 						return
 					}
 
-					// Handle other errors
-					log.Printf("PTY read error: %v", err)
-
-					// For transient errors, we'll continue after a short delay
 					// For permanent errors, we'll exit
 					if err == io.ErrClosedPipe || err == io.ErrUnexpectedEOF {
 						return
 					}
 
 					// For other errors, wait a bit before retrying
-					time.Sleep(100 * time.Millisecond)
+					time.Sleep(50 * time.Millisecond) // Reduced from 100ms to 50ms
 					continue
 				}
 
 				// If we read something, send it to the WebSocket
 				if n > 0 {
-					// Reduce logging to avoid spam
-					if n > 100 {
-						log.Printf("Read %d bytes from PTY, sending to WebSocket", n)
-					}
-
 					// Set a write deadline and send the data
 					conn.SetWriteDeadline(time.Now().Add(writeWait))
 					if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
-						log.Printf("WebSocket write error: %v", err)
-
 						// Check if it's a fatal error
 						if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 							return
 						}
 
 						// For other errors, wait a bit before continuing
-						time.Sleep(100 * time.Millisecond)
+						time.Sleep(50 * time.Millisecond) // Reduced from 100ms to 50ms
 					}
-				}
-			}
-		}
-	}()
-
-	// Start a separate goroutine for ping messages
-	go func() {
-		defer wg.Done()
-		defer cancel()
-
-		ticker := time.NewTicker(pingPeriod)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				// Send ping
-				conn.SetWriteDeadline(time.Now().Add(writeWait))
-				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-					log.Printf("Error sending ping: %v", err)
-					return
 				}
 			}
 		}
@@ -202,9 +186,9 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 	// Wait for the PTY bridge to be done or context to be cancelled
 	select {
 	case <-ptyBridge.Done():
-		log.Println("PTY bridge done")
+		// PTY bridge done
 	case <-ctx.Done():
-		log.Println("Context cancelled")
+		// Context cancelled
 	}
 
 	// Cancel the context to signal all goroutines to stop
@@ -213,8 +197,7 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 	// Wait for all goroutines to finish
 	wg.Wait()
 
-	// Close the connection
+	// Close the connection and PTY bridge
 	conn.Close()
 	ptyBridge.Close()
-	log.Println("WebSocket connection closed")
 }
