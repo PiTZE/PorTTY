@@ -1,4 +1,4 @@
-# PorTTY v0.1
+# PorTTY
 
 A standalone Go binary that serves a browser-based shell terminal with tmux integration.
 
