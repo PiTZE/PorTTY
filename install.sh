@@ -3,6 +3,7 @@ set -e
 
 # PorTTY Installer/Uninstaller
 # This script can install, update, or uninstall PorTTY
+# Supports both interactive and command-line argument modes
 
 # Colors for output
 RED='\033[0;31m'
@@ -19,6 +20,27 @@ SERVICE_FILE="/etc/systemd/system/portty.service"
 BINARY_FILE="$INSTALL_DIR/portty"
 IS_UPDATE=false
 MODE="install" # Default mode is install
+INTERACTIVE=true # Default to interactive mode
+YES_FLAG=false # For non-interactive confirmation
+
+# Function to display help
+show_help() {
+  echo "Usage: $0 [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help                 Show this help message"
+  echo "  -u, --uninstall            Uninstall PorTTY"
+  echo "  -y, --yes                  Automatic yes to prompts (non-interactive mode)"
+  echo "  -i, --interface INTERFACE  Specify interface to bind to (localhost or 0.0.0.0)"
+  echo "  -p, --port PORT            Specify port to listen on (1-65535)"
+  echo ""
+  echo "Examples:"
+  echo "  $0                         # Interactive installation"
+  echo "  $0 -i localhost -p 8080    # Install with specific interface and port"
+  echo "  $0 -u -y                   # Uninstall without confirmation prompt"
+  echo "  $0 -i 0.0.0.0 -p 9000 -y   # Non-interactive installation with specific settings"
+  exit 0
+}
 
 # Function to uninstall PorTTY
 uninstall_portty() {
@@ -50,9 +72,51 @@ uninstall_portty() {
 }
 
 # Parse command line arguments
-if [ "$1" = "--uninstall" ] || [ "$1" = "-u" ]; then
-  MODE="uninstall"
-fi
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help)
+      show_help
+      ;;
+    -u|--uninstall)
+      MODE="uninstall"
+      shift
+      ;;
+    -y|--yes)
+      YES_FLAG=true
+      INTERACTIVE=false
+      shift
+      ;;
+    -i|--interface)
+      if [[ -n "$2" && "$2" != -* ]]; then
+        DEFAULT_INTERFACE="$2"
+        INTERFACE="$2"
+        shift 2
+      else
+        echo -e "${RED}Error: Argument for $1 is missing${NC}"
+        exit 1
+      fi
+      ;;
+    -p|--port)
+      if [[ -n "$2" && "$2" != -* ]]; then
+        if [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge 1 ] && [ "$2" -le 65535 ]; then
+          DEFAULT_PORT="$2"
+          PORT="$2"
+          shift 2
+        else
+          echo -e "${RED}Error: Invalid port number: $2${NC}"
+          exit 1
+        fi
+      else
+        echo -e "${RED}Error: Argument for $1 is missing${NC}"
+        exit 1
+      fi
+      ;;
+    *)
+      echo -e "${RED}Error: Unknown option: $1${NC}"
+      show_help
+      ;;
+  esac
+done
 
 # Display header based on mode
 if [ "$MODE" = "install" ]; then
@@ -62,11 +126,17 @@ if [ "$MODE" = "install" ]; then
 else
   echo -e "${YELLOW}PorTTY Uninstaller${NC}"
   echo "This will completely remove PorTTY from your system."
-  read -p "Are you sure you want to uninstall PorTTY? [y/N] " confirm
-  if [[ "$confirm" != [yY] && "$confirm" != [yY][eE][sS] ]]; then
-    echo "Uninstall cancelled."
-    exit 0
+  
+  if [ "$INTERACTIVE" = true ]; then
+    read -p "Are you sure you want to uninstall PorTTY? [y/N] " confirm
+    if [[ "$confirm" != [yY] && "$confirm" != [yY][eE][sS] ]]; then
+      echo "Uninstall cancelled."
+      exit 0
+    fi
+  else
+    echo "Proceeding with uninstall (--yes flag provided)..."
   fi
+  
   uninstall_portty
 fi
 
@@ -99,29 +169,40 @@ if [ -f "$SERVICE_FILE" ]; then
   if grep -q "ExecStart=" "$SERVICE_FILE"; then
     CURRENT_CONFIG=$(grep "ExecStart=" "$SERVICE_FILE" | sed 's/ExecStart=.*portty run //')
     if [[ "$CURRENT_CONFIG" =~ ([^:]+):([0-9]+) ]]; then
-      DEFAULT_INTERFACE="${BASH_REMATCH[1]}"
-      DEFAULT_PORT="${BASH_REMATCH[2]}"
+      if [ -z "$INTERFACE" ]; then
+        DEFAULT_INTERFACE="${BASH_REMATCH[1]}"
+      fi
+      if [ -z "$PORT" ]; then
+        DEFAULT_PORT="${BASH_REMATCH[2]}"
+      fi
       echo "Current configuration: Interface=$DEFAULT_INTERFACE, Port=$DEFAULT_PORT"
     fi
   fi
 fi
 
-# Interactive configuration
-echo -e "${GREEN}PorTTY Configuration${NC}"
-echo "Please provide the following information (press Enter for default values):"
+# Interactive configuration if needed
+if [ "$INTERACTIVE" = true ]; then
+  echo -e "${GREEN}PorTTY Configuration${NC}"
+  echo "Please provide the following information (press Enter for default values):"
 
-# Ask for interface
-read -p "Interface to bind to [localhost or 0.0.0.0] (default: $DEFAULT_INTERFACE): " INTERFACE
-INTERFACE=${INTERFACE:-$DEFAULT_INTERFACE}
+  # Ask for interface
+  read -p "Interface to bind to [localhost or 0.0.0.0] (default: $DEFAULT_INTERFACE): " input_interface
+  INTERFACE=${input_interface:-$DEFAULT_INTERFACE}
+
+  # Ask for port
+  read -p "Port to listen on (default: $DEFAULT_PORT): " input_port
+  PORT=${input_port:-$DEFAULT_PORT}
+else
+  # Use values from command line or defaults
+  INTERFACE=${INTERFACE:-$DEFAULT_INTERFACE}
+  PORT=${PORT:-$DEFAULT_PORT}
+  echo -e "${GREEN}Using non-interactive mode with provided arguments${NC}"
+fi
 
 # Validate interface
 if [[ "$INTERFACE" != "localhost" && "$INTERFACE" != "0.0.0.0" && "$INTERFACE" != "127.0.0.1" ]]; then
-  echo -e "${YELLOW}Warning: Unusual interface specified. Using it anyway, but please ensure it's correct.${NC}"
+  echo -e "${YELLOW}Warning: Unusual interface specified ($INTERFACE). Using it anyway, but please ensure it's correct.${NC}"
 fi
-
-# Ask for port
-read -p "Port to listen on (default: $DEFAULT_PORT): " PORT
-PORT=${PORT:-$DEFAULT_PORT}
 
 # Validate port
 if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
@@ -214,5 +295,10 @@ echo "  - FirewallD: sudo firewall-cmd --permanent --add-port=$PORT/tcp && sudo 
 echo ""
 echo "To uninstall PorTTY in the future, run:"
 echo "  sudo $0 --uninstall"
+echo ""
+echo "For automated deployments, you can use command-line options:"
+echo "  sudo $0 -i localhost -p 8080 -y    # Non-interactive installation"
+echo "  sudo $0 -u -y                      # Non-interactive uninstallation"
+echo "  sudo $0 -h                         # Show all available options"
 echo ""
 echo "Enjoy using PorTTY!"
