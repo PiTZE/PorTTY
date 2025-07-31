@@ -3,6 +3,13 @@
 # Unified script for installation, configuration, and runtime management
 set -e
 
+# Determine script name for help messages
+if [[ "$0" == *"bash" ]]; then
+  SCRIPT_NAME="portty-installer"
+else
+  SCRIPT_NAME=$(basename "$0")
+fi
+
 # Trap signals for graceful shutdown
 trap 'cleanup EXIT' EXIT
 trap 'cleanup SIGINT' SIGINT
@@ -210,7 +217,7 @@ show_help() {
     echo "Unified script for installation, configuration, and runtime management"
     echo
     echo -e "${BOLD}USAGE:${NC}"
-    echo "  $0 [COMMAND] [OPTIONS]"
+    echo "  $SCRIPT_NAME [COMMAND] [OPTIONS]"
     echo
     echo -e "${BOLD}COMMANDS:${NC}"
     echo "  install                    Install PorTTY (default)"
@@ -240,13 +247,18 @@ show_help() {
     echo "  --debug                    Enable debug logging"
     echo
     echo -e "${BOLD}EXAMPLES:${NC}"
-    echo "  $0                         # Interactive installation"
-    echo "  $0 install -i localhost -p 8080  # Install with specific settings"
-    echo "  $0 uninstall -y            # Uninstall without confirmation"
-    echo "  $0 status                  # Check service status"
-    echo "  $0 start                   # Start the service"
-    echo "  $0 logs                    # View application logs"
-    echo "  sudo $0 install -i 0.0.0.0 -p 7314 -y  # Non-interactive install"
+    echo "  $SCRIPT_NAME                         # Interactive installation"
+    echo "  $SCRIPT_NAME install -i localhost -p 8080  # Install with specific settings"
+    echo "  $SCRIPT_NAME uninstall -y            # Uninstall without confirmation"
+    echo "  $SCRIPT_NAME status                  # Check service status"
+    echo "  $SCRIPT_NAME start                   # Start the service"
+    echo "  $SCRIPT_NAME logs                    # View application logs"
+    echo "  sudo $SCRIPT_NAME install -i 0.0.0.0 -p 7314 -y  # Non-interactive install"
+    echo
+    echo -e "${BOLD}INSTALLATION METHODS:${NC}"
+    echo "  Direct download: curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh > install.sh"
+    echo "  Then run: chmod +x install.sh && ./install.sh [OPTIONS]"
+    echo "  Or pipe to bash: curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | bash -s -- [OPTIONS]"
     echo
     echo -e "${BOLD}INTERACTIVE MODE:${NC}"
     echo "  Run without any commands or options for interactive menu"
