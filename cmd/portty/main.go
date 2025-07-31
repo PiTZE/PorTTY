@@ -65,12 +65,12 @@ func main() {
 	case "run":
 		// Process run command options
 		address := DefaultAddress
-		
+
 		// Skip the first two arguments (program name and "run" command)
 		args := os.Args[2:]
 		for i := 0; i < len(args); i++ {
 			arg := args[i]
-			
+
 			switch arg {
 			case "-h", "--help":
 				showRunHelp()
@@ -101,7 +101,7 @@ func main() {
 				}
 			}
 		}
-		
+
 		runServer(address, pidFilePath)
 	case "stop":
 		// Check if the stop command has a help flag
@@ -137,47 +137,47 @@ func main() {
 // showRunHelp displays help for the run command
 func showRunHelp() {
 	programName := filepath.Base(os.Args[0])
-	
+
 	fmt.Println("PorTTY - Run Command")
 	fmt.Println("Start the PorTTY server")
 	fmt.Println()
-	
+
 	fmt.Println("USAGE:")
 	fmt.Printf("  %s run [OPTIONS] [address]\n", programName)
 	fmt.Println()
-	
+
 	fmt.Println("OPTIONS:")
 	fmt.Println("  -h, --help            Show this help message")
 	fmt.Println("  -a, --address ADDR    Specify the address to bind to (format: [host]:[port])")
 	fmt.Println("  -p, --port PORT       Specify the port to listen on")
 	fmt.Println()
-	
+
 	fmt.Println("ARGUMENTS:")
 	fmt.Println("  address               Address to bind to (format: [host]:[port])")
 	fmt.Printf("                        Default: %s\n", DefaultAddress)
 	fmt.Println()
-	
+
 	fmt.Println("EXAMPLES:")
 	fmt.Printf("  %s run                       # Start on localhost:7314\n", programName)
-	fmt.Printf("  %s run :8080                 # Start on all interfaces, port 8080\n", programName)
-	fmt.Printf("  %s run 0.0.0.0:8080          # Start on all interfaces, port 8080\n", programName)
-	fmt.Printf("  %s run -p 3000               # Start on localhost, port 3000\n", programName)
-	fmt.Printf("  %s run -a 0.0.0.0 -p 8080    # Start on all interfaces, port 8080\n", programName)
-	fmt.Printf("  %s run --address localhost --port 9000  # Start on localhost, port 9000\n", programName)
+	fmt.Printf("  %s run :7314                 # Start on all interfaces, port 7314\n", programName)
+	fmt.Printf("  %s run 0.0.0.0:7314          # Start on all interfaces, port 7314\n", programName)
+	fmt.Printf("  %s run -p 7314               # Start on localhost, port 7314\n", programName)
+	fmt.Printf("  %s run -a 0.0.0.0 -p 7314    # Start on all interfaces, port 7314\n", programName)
+	fmt.Printf("  %s run --address localhost --port 7314  # Start on localhost, port 7314\n", programName)
 }
 
 // showStopHelp displays help for the stop command
 func showStopHelp() {
 	programName := filepath.Base(os.Args[0])
-	
+
 	fmt.Println("PorTTY - Stop Command")
 	fmt.Println("Stop the running PorTTY server")
 	fmt.Println()
-	
+
 	fmt.Println("USAGE:")
 	fmt.Printf("  %s stop\n", programName)
 	fmt.Println()
-	
+
 	fmt.Println("DESCRIPTION:")
 	fmt.Println("  This command will gracefully stop the running PorTTY server.")
 	fmt.Println("  It first tries to find the server using the PID file, and if that fails,")
@@ -199,35 +199,35 @@ func showHelp() {
 	fmt.Printf("PorTTY %s - Web-based Terminal\n", version)
 	fmt.Println("A lightweight, web-based terminal emulator powered by tmux")
 	fmt.Println()
-	
+
 	fmt.Println("USAGE:")
 	fmt.Printf("  %s [OPTIONS] COMMAND [ARGS]\n", programName)
 	fmt.Println()
-	
+
 	fmt.Println("OPTIONS:")
 	fmt.Println("  -h, --help     Show this help message and exit")
 	fmt.Println()
-	
+
 	fmt.Println("COMMANDS:")
 	fmt.Println("  run [address]  Start the server (default: localhost:7314)")
 	fmt.Println("  stop           Stop the server")
 	fmt.Println("  help           Show this help message")
 	fmt.Println()
-	
+
 	fmt.Println("RUN OPTIONS:")
 	fmt.Println("  address        Address to bind to (format: [host]:[port])")
 	fmt.Printf("                 Default: %s\n", DefaultAddress)
 	fmt.Println()
-	
+
 	fmt.Println("EXAMPLES:")
 	fmt.Printf("  %s run                    # Start on localhost:7314\n", programName)
-	fmt.Printf("  %s run :8080              # Start on all interfaces, port 8080\n", programName)
-	fmt.Printf("  %s run 0.0.0.0:8080       # Start on all interfaces, port 8080\n", programName)
-	fmt.Printf("  %s run localhost:3000     # Start on localhost, port 3000\n", programName)
+	fmt.Printf("  %s run :7314              # Start on all interfaces, port 7314\n", programName)
+	fmt.Printf("  %s run 0.0.0.0:7314       # Start on all interfaces, port 7314\n", programName)
+	fmt.Printf("  %s run localhost:7314     # Start on localhost, port 7314\n", programName)
 	fmt.Printf("  %s stop                   # Stop the server\n", programName)
 	fmt.Printf("  %s -h                     # Show this help message\n", programName)
 	fmt.Println()
-	
+
 	fmt.Println("For more information, visit: https://github.com/PiTZE/PorTTY")
 }
 
