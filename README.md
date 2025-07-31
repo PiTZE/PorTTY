@@ -38,10 +38,14 @@ The install.sh script provides a comprehensive installation experience:
 ```bash
 # Basic installation (interactive mode)
 curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | sudo bash
+```
 
+```bash
 # Non-interactive installation with custom settings
 curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | sudo bash -s -- -i 0.0.0.0 -p 8080 -y
+```
 
+```bash
 # Show all available options
 curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | bash -s -- --help
 ```
@@ -49,14 +53,8 @@ curl -sSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh | bas
 ### Building from Source
 
 ```bash
-# Clone the repository
-git clone https://github.com/PiTZE/PorTTY.git
-cd PorTTY
-
-# Build the binary
-./build.sh
-
 # The binary will be created as 'portty' in the current directory
+git clone https://github.com/PiTZE/PorTTY.git && cd PorTTY && ./build.sh
 ```
 
 ### Nix Environment (Optional)
