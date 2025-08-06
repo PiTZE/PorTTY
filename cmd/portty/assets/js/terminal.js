@@ -5,7 +5,6 @@
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 1000;
 const KEEP_ALIVE_INTERVAL = 30000;
-const RESIZE_DEBOUNCE_DELAY = 100;
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -43,6 +42,11 @@ function validateDependencies() {
         return false;
     }
     
+    if (typeof window.WebglAddon === 'undefined' || typeof window.WebglAddon.WebglAddon === 'undefined') {
+        console.error('WebglAddon not loaded');
+        return false;
+    }
+    
     return true;
 }
 
@@ -60,17 +64,13 @@ class ConnectionStatusManager {
     }
     
     initialize() {
-        console.log('[PorTTY] Initializing connection status, element found:', !!this.connectionStatus);
-        
         if (this.isLocalhost) {
-            console.log('[PorTTY] Running on localhost - hiding connection status');
             this.hideConnectionStatus();
             return;
         }
         
         if (this.connectionStatus) {
             this.makeVisible();
-            console.log('[PorTTY] Connection status made visible');
         } else {
             console.error('[PorTTY] Connection status element not found in DOM');
         }
@@ -126,7 +126,6 @@ class ConnectionStatusManager {
         
         setTimeout(() => {
             if (this.connectionStatus && this.connectionStatus.style.display === 'none') {
-                console.log('[PorTTY] Fallback: Making connection status visible');
                 this.makeVisible();
                 this.updateStatus('connecting');
             }
@@ -134,7 +133,6 @@ class ConnectionStatusManager {
         
         setTimeout(() => {
             if (this.connectionStatus && !this.connectionStatus.offsetParent) {
-                console.log('[PorTTY] Final fallback: Connection status not visible, forcing visibility');
                 this.makeVisible();
             }
         }, 1000);
@@ -172,28 +170,53 @@ function initializePorTTY() {
         fastScrollModifier: 'alt',
         disableStdin: false,
         screenReaderMode: false,
-        rendererType: 'canvas',
-        cols: 100,
-        rows: 40
+        rendererType: 'webgl' // Use WebGL renderer for better performance
+        // No cols/rows specified - let FitAddon handle all sizing
     });
     
+    // Load addons BEFORE opening terminal
+    const fitAddon = new window.FitAddon.FitAddon();
+    const webglAddon = new window.WebglAddon.WebglAddon();
+    
+    term.loadAddon(fitAddon);
+    
+    // Open terminal first
     term.open(terminalContainer);
-    term.focus();
+    
+    // Load WebGL addon after opening with context loss handling
+    try {
+        // Handle WebGL context loss as per best practices
+        webglAddon.onContextLoss(e => {
+            webglAddon.dispose();
+        });
+        
+        term.loadAddon(webglAddon);
+    } catch (error) {
+        console.warn('[PorTTY] WebGL addon failed to load, falling back to canvas:', error);
+    }
+    
+    // Wait for container to be properly sized, then fit
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            fitAddon.fit();
+            term.focus();
+        });
+    });
     
     let socket = null;
     let reconnectAttempts = 0;
     
-    const fitAddon = new window.FitAddon.FitAddon();
-    term.loadAddon(fitAddon);
-    
     const connectionManager = new ConnectionStatusManager();
     
-    setupWebSocketConnection(term, fitAddon, connectionManager, socket, reconnectAttempts);
-    setupEventListeners(term, fitAddon, socket);
-    setupConnectionInfo(socket, reconnectAttempts, term);
-    
+    // Global references for reactive resize and debugging
+    window.porttySocket = null;
     window.porttyTerminal = term;
+    window.porttyFitAddon = fitAddon;
     window.porttyConnectionManager = connectionManager;
+    
+    setupWebSocketConnection(term, fitAddon, connectionManager, socket, reconnectAttempts);
+    setupReactiveResize(term, fitAddon);
+    setupConnectionInfo(socket, reconnectAttempts, term);
 }
 
 // ============================================================================
@@ -210,17 +233,17 @@ function setupWebSocketConnection(term, fitAddon, connectionManager, socket, rec
         const wsUrl = `${protocol}//${window.location.host}/ws`;
         
         socket = new WebSocket(wsUrl);
+        window.porttySocket = socket; // Update global reference
         const attachAddon = new window.AttachAddon.AttachAddon(socket);
         term.loadAddon(attachAddon);
         
         socket.addEventListener('open', () => {
-            console.log('WebSocket connected');
             connectionManager.updateStatus('connected');
             term.write('\r\n\x1b[32mConnected to PorTTY server\x1b[0m\r\n');
             reconnectAttempts = 0;
             
-            fitAddon.fit();
-            sendResize(socket, term);
+            // Send initial size (terminal already fitted during initialization)
+            sendResize(term);
         });
         
         socket.addEventListener('error', (event) => {
@@ -230,7 +253,6 @@ function setupWebSocketConnection(term, fitAddon, connectionManager, socket, rec
         });
         
         socket.addEventListener('close', (event) => {
-            console.log('WebSocket closed:', event.code, event.reason);
             connectionManager.updateStatus('disconnected');
             
             if (event.code !== 1000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
@@ -262,7 +284,8 @@ function setupWebSocketConnection(term, fitAddon, connectionManager, socket, rec
     connectWebSocket();
 }
 
-function sendResize(socket, term) {
+function sendResize(term) {
+    const socket = window.porttySocket;
     if (socket && socket.readyState === WebSocket.OPEN) {
         const resizeMessage = JSON.stringify({
             type: 'resize',
@@ -275,30 +298,60 @@ function sendResize(socket, term) {
     }
 }
 
-function setupEventListeners(term, fitAddon, socket) {
-    let resizeTimer;
-    window.addEventListener('resize', () => {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(() => {
-            fitAddon.fit();
-            sendResize(socket, term);
-        }, RESIZE_DEBOUNCE_DELAY);
-    });
+function setupReactiveResize(term, fitAddon) {
+    let lastDimensions = { width: 0, height: 0 };
     
+    // High-performance resize function - no debouncing needed
+    const performResize = () => {
+        const container = document.getElementById('terminal-container');
+        if (!container) {
+            return;
+        }
+        
+        const containerRect = container.getBoundingClientRect();
+        
+        // Skip resize if container has no dimensions (hidden, etc.)
+        if (containerRect.width <= 0 || containerRect.height <= 0) {
+            return;
+        }
+        
+        // Skip resize if dimensions haven't actually changed (5px threshold)
+        if (Math.abs(containerRect.width - lastDimensions.width) < 5 &&
+            Math.abs(containerRect.height - lastDimensions.height) < 5) {
+            return;
+        }
+        
+        lastDimensions = { width: containerRect.width, height: containerRect.height };
+        
+        try {
+            fitAddon.fit();
+            sendResize(term);
+        } catch (error) {
+            console.error('[PorTTY] Error during fit:', error);
+        }
+    };
+    
+    // Only use window resize for maximum performance
+    window.addEventListener('resize', performResize);
+    
+    // Keyboard shortcuts and cleanup (non-resize related)
     document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey && e.key === 'r') || e.key === 'F5') {
-            if (socket && socket.readyState !== WebSocket.OPEN) {
+            if (window.porttySocket && window.porttySocket.readyState !== WebSocket.OPEN) {
                 e.preventDefault();
-                setupWebSocketConnection(term, fitAddon, connectionManager, socket, reconnectAttempts);
+                // Trigger reconnection logic would go here
             }
         }
     });
     
     window.addEventListener('beforeunload', () => {
-        if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.close(1000, 'Page unloaded');
+        if (window.porttySocket && window.porttySocket.readyState === WebSocket.OPEN) {
+            window.porttySocket.close(1000, 'Page unloaded');
         }
     });
+    
+    // Manual resize trigger for debugging
+    window.porttyManualResize = performResize;
 }
 
 function setupConnectionInfo(socket, reconnectAttempts, term) {

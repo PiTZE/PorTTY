@@ -9,7 +9,18 @@
 - Progressive Web App features fully implemented
 
 ## Recent Work
-- **Localhost Connection Status Fix (Latest)**:
+- **Terminal Resizing Performance Fix (Latest)**:
+  - Fixed critical terminal resizing bug that prevented dynamic viewport adaptation
+  - Implemented WebGL addon with proper context loss handling for hardware acceleration
+  - Resolved resize event loop caused by multiple competing ResizeObserver instances
+  - Fixed initialization timing by loading FitAddon before terminal opening
+  - Removed CSS layout conflicts by eliminating `!important` declarations in `.xterm-screen`
+  - Eliminated debouncing and cooldown periods for immediate resize response
+  - Cleaned up all debug logging code for production-ready performance
+  - Terminal now handles very small viewport sizes gracefully (like VS Code/Alacritty)
+  - Achieved instant resize response with 5px threshold optimization
+
+- **Localhost Connection Status Fix**:
   - Implemented automatic localhost detection to hide connection status indicators
   - Added `isRunningOnLocalhost()` utility function detecting localhost, 127.0.0.1, and ::1
   - Enhanced ConnectionStatusManager class with localhost-aware behavior
@@ -87,6 +98,4 @@
 - Plan for v0.3 features based on user feedback
 
 ## Identified Issues & Future Features
-- **Dynamic Terminal Resize Bug**: Terminal only resizes once on load/reload instead of dynamically responding to window size changes - needs proper resize event handling
 - **Default Shell Option**: Add configuration option to use user's default shell directly instead of tmux, configurable during installation
-- **Terminal Space Optimization**: Terminal doesn't fully utilize available viewport space - needs improved layout and dynamic canvas sizing for better space utilization

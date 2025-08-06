@@ -10,9 +10,14 @@
     --cursor-color: #ffffff;
     --border-color: #333333;
     --accent-color: #0066cc;
+    --accent-hover-color: #0052a3;
     --success-color: #80ff80;
     --warning-color: #ffff80;
     --error-color: #ff8080;
+    --secondary-border-color: #555555;
+    --secondary-text-color: #999999;
+    --tertiary-border-color: #444444;
+    --secondary-background-color: #cccccc;
 }
 
 html, body {
@@ -30,8 +35,12 @@ html, body {
 #terminal-container {
     flex: 1;
     width: 100%;
-    height: 100%;
+    height: 100%; /* Ensure full height */
+    min-height: 0; /* Important for flex children to shrink properly */
     display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative; /* Ensure proper positioning context */
 }
 
 .terminal {
@@ -40,8 +49,9 @@ html, body {
 }
 
 .xterm {
-    height: 100%;
+    flex: 1;
     width: 100%;
+    min-height: 0; /* Prevents flex item from overflowing */
     font-feature-settings: "liga" 0;
     position: relative;
     user-select: none;
@@ -95,8 +105,9 @@ html, body {
 
 .xterm .xterm-screen {
     position: relative;
-    width: 100% !important;
-    height: 100% !important;
+    /* Remove !important to allow FitAddon to control dimensions */
+    width: 100%;
+    height: 100%;
 }
 
 .xterm .xterm-screen canvas {
@@ -174,12 +185,12 @@ html, body {
 }
 
 .install-btn:hover {
-    background: #0052a3;
+    background: var(--accent-hover-color);
 }
 
 .install-dismiss {
     background: transparent;
-    color: #999;
+    color: var(--secondary-text-color);
     border: none;
     font-size: 1.2rem;
     cursor: pointer;
@@ -215,6 +226,17 @@ html, body {
 
 .connection-status.hidden {
     display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+}
+
+.connection-status.force-visible {
+    display: flex !important;
+    visibility: visible !important;
 }
 
 .status-indicator {
@@ -249,7 +271,7 @@ html, body {
 .offline-btn, .online-btn {
     background: var(--border-color);
     color: var(--foreground-color);
-    border: 1px solid #555;
+    border: 1px solid var(--secondary-border-color);
     padding: 0.25rem 0.5rem;
     border-radius: 3px;
     font-family: var(--font-family);
@@ -259,7 +281,7 @@ html, body {
 }
 
 .offline-btn:hover, .online-btn:hover {
-    background: #555;
+    background: var(--secondary-border-color);
 }
 
 /* Offline Mode UI */
@@ -269,7 +291,7 @@ html, body {
     left: 50%;
     transform: translate(-50%, -50%);
     background: rgba(0, 0, 0, 0.95);
-    border: 1px solid #444;
+    border: 1px solid var(--tertiary-border-color);
     border-radius: 8px;
     padding: 2rem;
     text-align: center;
@@ -290,7 +312,7 @@ html, body {
 }
 
 .offline-header p {
-    color: #ccc;
+    color: var(--secondary-background-color);
     margin: 0 0 1.5rem 0;
     font-family: var(--font-family);
     font-size: 0.9rem;
@@ -302,7 +324,7 @@ html, body {
 }
 
 .online-btn:hover {
-    background: #0052a3;
+    background: var(--accent-hover-color);
 }
 
 /* Responsive adjustments */
@@ -317,10 +339,11 @@ html, body {
     }
     
     .connection-status {
-        position: relative;
-        top: auto;
-        right: auto;
-        width: 100%;
+        /* Keep fixed positioning to avoid layout disruption */
+        position: fixed !important;
+        top: 0 !important;
+        right: 0 !important;
+        width: auto;
         justify-content: center;
         border-radius: 0;
         border: none;
@@ -331,6 +354,7 @@ html, body {
         width: 95%;
         padding: 1.5rem;
     }
+    
 }
 
 /* PWA-specific styles when installed */

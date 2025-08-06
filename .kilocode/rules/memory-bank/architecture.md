@@ -100,8 +100,9 @@ PorTTY follows a clean, modular architecture with clear separation of concerns:
   - Progressive Web App capabilities with installation prompts
   - Auto-reconnection with exponential backoff
   - Consolidated connection status management
-  - Responsive terminal sizing
-  - Performance-optimized xterm.js configuration
+  - High-performance terminal resizing with WebGL acceleration
+  - Instant resize response without debouncing for optimal UX
+  - Performance-optimized xterm.js configuration with proper addon timing
   - Centralized theming with CSS custom properties
   - Organized asset structure with dedicated directories
 
@@ -158,8 +159,9 @@ PorTTY follows a clean, modular architecture with clear separation of concerns:
 7. **Performance Optimizations**:
    - Large buffer sizes (16KB) for data transfer
    - Channel buffering to prevent blocking
-   - Debounced resize events
+   - Instant terminal resizing with WebGL hardware acceleration
    - Context-aware operations without unnecessary blocking
+   - Optimized addon loading order for proper initialization timing
 
 8. **Error Handling**:
    - Graceful degradation on errors
