@@ -1,17 +1,62 @@
-# PorTTY v0.1 Release Notes
+# PorTTY v0.2 Release Notes
 
-This is the initial release of PorTTY, a standalone Go binary that serves a browser-based shell terminal with tmux integration.
+This release transforms PorTTY into a Progressive Web App (PWA) with enhanced user experience, code refactoring, and improved maintainability.
 
-## Features
+## New Features
 
-- **Single static binary** - No external dependencies except tmux
-- **Browser-based terminal** - Access your terminal from any web browser
-- **Real-time communication** - WebSocket connection for low-latency terminal interaction
-- **Session persistence** - Uses tmux to maintain terminal sessions between connections
-- **Responsive design** - Automatically adjusts to browser window size
-- **Copy/paste support** - Full clipboard integration
-- **Connection resilience** - Automatic reconnection with exponential backoff
-- **Graceful shutdown** - Properly cleans up resources on termination
+### Progressive Web App (PWA) Support
+- **App Installation** - Install PorTTY as a native app on any device
+- **Offline Caching** - Service worker caches app shell for faster loading
+- **App Manifest** - Native app experience with proper icons and metadata
+- **Installation Prompts** - Smart prompts to install the app when appropriate
+
+### Enhanced Connection Management
+- **Connection Status Indicator** - Real-time connection status in top-right corner
+- **Connection Info Button** - Detailed connection information and diagnostics
+- **Keep-Alive Mechanism** - Enhanced WebSocket keep-alive to prevent timeouts
+- **Improved Reconnection** - Better handling of connection drops and recovery
+
+### User Interface Improvements
+- **Consistent Typography** - JetBrains Mono font standardized across entire application
+- **Connection Status Visibility** - Always-visible connection status with fallback mechanisms
+- **PWA Installation Banner** - Non-intrusive installation prompts
+- **Mobile-Optimized** - Better responsive design for mobile devices
+
+## Code Quality Improvements
+
+### Eliminated Code Duplications
+- **Centralized Configuration** - CSS custom properties for consistent theming
+- **Font Standardization** - Single source of truth for JetBrains Mono font
+- **Connection Management** - Consolidated multiple connection status functions into single class
+- **Removed Redundant Files** - Cleaned up unused connection-manager.js
+
+### Architecture Enhancements
+- **CSS Custom Properties** - Centralized theming configuration:
+  ```css
+  :root {
+      --font-family: 'JetBrains Mono', monospace;
+      --font-size: 14px;
+      --background-color: #000000;
+      --foreground-color: #f0f0f0;
+  }
+  ```
+- **ConnectionStatusManager Class** - Object-oriented approach for connection handling
+- **DRY Principles** - Eliminated ~40% of code duplication
+- **Improved Maintainability** - Better code organization and documentation
+
+## Technical Improvements
+
+### PWA Infrastructure
+- **Service Worker** - Caches static assets and CDN resources
+- **Manifest.json** - Complete PWA manifest with icons and metadata
+- **Cache Versioning** - Proper cache management with version v0.2
+- **Offline Strategy** - Cache-first strategy for app shell resources
+
+### Enhanced WebSocket Handling
+- **Consolidated Management** - Single class handles all connection states
+- **Better Error Handling** - Improved error messages and recovery
+- **Performance Optimizations** - Reduced redundant status checks
+- **Debugging Support** - Global access to terminal and connection manager
 
 ## Installation
 
@@ -23,22 +68,22 @@ sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master
 
 Then access your terminal at: http://your-server-ip:7314
 
-### Manual Installation
+### PWA Installation
+- Visit the web interface in a modern browser
+- Look for the installation prompt or "Install PorTTY" button
+- Install as a native app for the best experience
 
-1. Download the binary for your platform
-2. Make it executable: `chmod +x portty`
-3. Run it: `./portty run`
+## File Structure Updates
 
-## Performance Optimizations
+New PWA-related files:
+- `manifest.json` - PWA app manifest
+- `sw.js` - Service worker for caching
+- `PWA_ARCHITECTURE.md` - PWA implementation documentation
 
-This release includes several performance optimizations:
+## Breaking Changes
 
-- Removed mutex locking in PTY operations for better throughput
-- Increased buffer sizes for improved data transfer
-- Implemented message buffering with channels to prevent blocking
-- Added debounced resize handling to reduce unnecessary resize events
-- Optimized terminal settings for better rendering performance
-- Improved installation script with better compatibility across different environments
+- Removed `connection-manager.js` (functionality moved to `terminal.js`)
+- Updated service worker cache to v0.2 (will refresh cached assets)
 
 ## Known Issues
 
@@ -50,3 +95,4 @@ This release includes several performance optimizations:
 - [xterm.js](https://xtermjs.org/) for the terminal emulator
 - [creack/pty](https://github.com/creack/pty) for PTY handling
 - [gorilla/websocket](https://github.com/gorilla/websocket) for WebSocket communication
+- PWA best practices from web.dev and MDN documentation
