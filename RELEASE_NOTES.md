@@ -1,8 +1,31 @@
 # PorTTY v0.2 Release Notes
 
-This release transforms PorTTY into a Progressive Web App (PWA) with enhanced user experience, comprehensive architecture improvements, and improved maintainability through interface-based design.
+This release transforms PorTTY into a Progressive Web App (PWA) with enhanced user experience, comprehensive architecture improvements, dual shell mode support, and Nerd Font integration for perfect terminal rendering.
 
 ## New Features
+
+### Shell Mode Support
+- **Default Shell Mode** - Uses user's default shell (zsh, bash, etc.) directly as primary mode
+- **Optional tmux Mode** - Available via `--tmux` flag for session persistence
+- **Smart Shell Detection** - Fixed NixOS compatibility by prioritizing `/etc/passwd` over environment variables
+- **Cross-Platform Support** - Works with various shell configurations and distributions
+- **Command Line Interface** - Added `--tmux` flag with updated help documentation
+
+### Nerd Font Integration
+- **Comprehensive Font Stack** - Added support for JetBrainsMono Nerd Font and popular Nerd Font variants
+- **Local Font Detection** - Prioritizes locally installed Nerd Fonts for proper icon rendering
+- **Perfect Icon Display** - Shell prompts now display special characters correctly (╭─, ⇡, !6, ❯, etc.)
+- **Fallback Support** - Graceful degradation to standard fonts if Nerd Fonts unavailable
+
+### Enhanced Scrollback Experience
+- **Hidden Scrollbars** - Added CSS to hide scrollbars while maintaining 10,000 line scrollback functionality
+- **Full Scrollback Access** - Users can scroll through terminal history without visible scrollbars
+- **Cross-Browser Compatibility** - Works with WebKit, Firefox, and IE scrollbar hiding
+
+### Terminal Resize Improvements
+- **Robust Initialization** - Enhanced initial fit logic with multiple timing strategies
+- **Error Handling** - Added proper error handling and retry mechanisms for resize operations
+- **Fallback Timing** - Multiple resize attempts to ensure proper viewport filling on load
 
 ### Progressive Web App (PWA) Support
 - **App Installation** - Install PorTTY as a native app on any device
@@ -17,7 +40,7 @@ This release transforms PorTTY into a Progressive Web App (PWA) with enhanced us
 - **Improved Reconnection** - Better handling of connection drops and recovery
 
 ### User Interface Improvements
-- **Consistent Typography** - JetBrains Mono font standardized across entire application
+- **Nerd Font Typography** - JetBrainsMono Nerd Font with comprehensive fallback stack
 - **Connection Status Visibility** - Always-visible connection status with fallback mechanisms
 - **PWA Installation Banner** - Non-intrusive installation prompts
 - **Mobile-Optimized** - Better responsive design for mobile devices
@@ -60,7 +83,7 @@ This release transforms PorTTY into a Progressive Web App (PWA) with enhanced us
 - **CSS Custom Properties** - Centralized theming configuration:
   ```css
   :root {
-      --font-family: 'JetBrains Mono', monospace;
+      --font-family: 'JetBrainsMono Nerd Font', 'JetBrainsMono NF', 'JetBrains Mono', 'Nerd Font Complete', 'Nerd Font', monospace;
       --font-size: 14px;
       --background-color: #000000;
       --foreground-color: #f0f0f0;

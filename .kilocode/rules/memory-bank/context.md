@@ -1,16 +1,25 @@
 # PorTTY Current Context
 
 ## Current State
-- Project version: v0.2 (Complete architectural refactoring with PWA capabilities)
+- Project version: v0.2+ (Complete architectural refactoring with PWA capabilities and shell mode support)
 - Core functionality implemented and working with enhanced architecture
 - Single binary deployment achieved with interface-based design
 - Browser-based terminal fully functional with PWA capabilities
-- tmux integration for session persistence complete and verified
+- Dual shell mode support: default shell (primary) and tmux mode (optional)
 - Progressive Web App features fully implemented
+- Nerd Font support for proper icon rendering
 - Production-ready with comprehensive frontend enhancements
 
 ## Recent Work
-- **Enhanced Frontend Architecture (Latest)**:
+- **Shell Mode Implementation (Latest)**:
+  - **Default Shell Mode**: Uses user's default shell directly (zsh, bash, etc.) as primary mode
+  - **Optional tmux Mode**: Available via `--tmux` flag for session persistence
+  - **Smart Shell Detection**: Fixed NixOS compatibility by prioritizing `/etc/passwd` over environment variables
+  - **Command Line Interface**: Added `--tmux` flag and updated help documentation
+  - **Cross-Platform Support**: Works with various shell configurations and distributions
+
+
+- **Enhanced Frontend Architecture**:
   - Comprehensive xterm.js addon integration with 8 addons loaded
   - Advanced terminal features: WebGL acceleration, search, clipboard, web links, Unicode11 support
   - Smart renderer selection (WebGL for desktop, Canvas for mobile devices)
@@ -72,10 +81,12 @@
   - Improved code maintainability and DRY principles
 
 ## Active Development Focus
-- Project is in stable v0.2 release state with production-ready architecture
+- Project is in stable v0.2+ release state with production-ready architecture
 - Complete backend refactoring completed with interface-based design
 - Enhanced testability and maintainability through dependency injection
 - Advanced frontend features with comprehensive xterm.js addon integration
+- Dual shell mode support (default shell + optional tmux mode)
+- Nerd Font support for proper icon rendering
 - Ready for production use with modern Go architecture patterns
 
 ## Known Issues
@@ -90,7 +101,9 @@
 - Monitor PWA installation and usage patterns
 - Plan for v0.3 features based on user feedback
 
-## Identified Issues & Future Features
-- **Default Shell Option**: Add configuration option to use user's default shell directly instead of tmux, configurable during installation
-- **Theme Switching**: Consider adding runtime theme switching functionality
-- **Advanced Search**: Enhance search with regex support and case sensitivity options
+## Recent Achievements
+- **Shell Mode Flexibility**: Successfully implemented dual shell mode support with default shell as primary option
+- **Nerd Font Integration**: Added comprehensive Nerd Font support for proper shell prompt icon rendering
+- **Enhanced User Experience**: Improved scrollback with hidden scrollbars and robust terminal resizing
+- **Cross-Platform Compatibility**: Fixed shell detection issues on NixOS and other distributions
+- **Performance Optimizations**: Enhanced terminal initialization with better error handling and fallback mechanisms

@@ -19,7 +19,8 @@
   - xterm-addon-unicode11 v0.8.0 (Unicode 11 support)
   - xterm-addon-web-links v0.11.0 (clickable web links)
   - xterm-addon-clipboard v0.1.0 (clipboard operations)
-- **Styling**: Custom CSS with JetBrains Mono font and CSS custom properties
+- **Styling**: Custom CSS with Nerd Font support and CSS custom properties
+- **Fonts**: JetBrainsMono Nerd Font with comprehensive fallback stack for icon rendering
 - **JavaScript**: Vanilla JS with ES6+ features (no framework dependencies)
 
 ### System Dependencies
@@ -220,7 +221,7 @@ location / {
 - **CSS Custom Properties**: Centralized theming configuration using CSS variables
   ```css
   :root {
-      --font-family: 'JetBrains Mono', monospace;
+      --font-family: 'JetBrainsMono Nerd Font', 'JetBrainsMono NF', 'JetBrains Mono', 'Nerd Font Complete', 'Nerd Font', monospace;
       --font-size: 14px;
       --background-color: #000000;
       --foreground-color: #f0f0f0;

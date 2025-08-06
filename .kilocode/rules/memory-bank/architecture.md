@@ -6,8 +6,8 @@ PorTTY follows a clean, modular architecture with clear separation of concerns:
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   Browser   │────▶│  Web Server  │────▶│    tmux     │
-│  (xterm.js) │◀────│  (Go HTTP)   │◀────│  (session)  │
+│   Browser   │────▶│  Web Server  │────▶│Default Shell│
+│  (xterm.js) │◀────│  (Go HTTP)   │◀────│ (zsh/bash)  │
 └─────────────┘     └──────────────┘     └─────────────┘
        ▲                    │                     ▲
        │              ┌─────▼─────┐               │
@@ -16,8 +16,8 @@ PorTTY follows a clean, modular architecture with clear separation of concerns:
                       └───────────┘
                             │
                       ┌─────▼─────┐
-                      │PTY Bridge │
-                      └───────────┘
+                      │PTY Bridge │ ──── Optional: tmux mode
+                      └───────────┘      (--tmux flag)
 ```
 
 ## Core Components
@@ -43,6 +43,9 @@ PorTTY follows a clean, modular architecture with clear separation of concerns:
   - Default values and constants centralization
   - Type-safe configuration access
   - Environment-specific settings
+  - Shell mode configuration (UseTmux flag)
+  - Smart shell detection with NixOS compatibility
+  - Cross-platform shell path resolution
 
 ### 3. Structured Logging (`internal/logger/logger.go`)
 - **Purpose**: Component-specific logging with contextual fields
@@ -215,19 +218,28 @@ PorTTY/
 
 PorTTY follows consistent development patterns across all components. Detailed coding standards including file organization, naming conventions, error handling patterns, and project-specific implementation guidelines are documented in the technology stack specifications.
 
-## Session Persistence Behavior (Verified v0.2)
+## Shell Mode Behavior (v0.2+)
 
-**Critical Feature**: tmux session persistence across connection closures remains fully functional after v0.2 refactoring:
+**Dual Mode Support**: PorTTY now supports both default shell and optional tmux modes:
 
-1. **Individual Connection Close**: Only closes PTY bridge, tmux session persists
-2. **New Connection**: Automatically detects and attaches to existing session
+### Default Shell Mode (Primary)
+1. **Direct Shell Access**: Uses user's default shell (zsh, bash, etc.) directly
+2. **No Session Persistence**: Each connection is independent
+3. **Faster Startup**: No tmux overhead
+4. **Native Experience**: Behaves exactly like a local terminal
+
+### Optional tmux Mode (--tmux flag)
+1. **Session Persistence**: tmux sessions persist across connection closures
+2. **Multi-Client Support**: Multiple browsers can connect to same session
 3. **Server Shutdown**: Explicitly kills tmux sessions during cleanup
 4. **Session Continuity**: Users can reconnect and resume exactly where they left off
 
+**Shell Detection**: Smart detection prioritizes `/etc/passwd` over environment variables for NixOS compatibility.
+
 This behavior is implemented in:
-- [`ptybridge.Close()`](internal/ptybridge/ptybridge.go:252): Preserves tmux session
-- [`ptybridge.New()`](internal/ptybridge/ptybridge.go:74): Checks for existing sessions
-- [`cleanupTmuxSessions()`](cmd/portty/main.go:590): Server shutdown cleanup
+- [`config.getDefaultShell()`](internal/config/config.go:56): Smart shell detection with NixOS support
+- [`ptybridge.New()`](internal/ptybridge/ptybridge.go:74): Mode-aware PTY creation
+- [`main.go`](cmd/portty/main.go): Command line flag parsing and conditional tmux checking
 
 ## Security Considerations
 
