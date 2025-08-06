@@ -148,74 +148,6 @@ html, body {
 /* PWA ENHANCEMENTS */
 /* ============================================================================ */
 
-.install-banner {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
-    border-bottom: 1px solid var(--border-color);
-    padding: 0.75rem;
-    z-index: 1000;
-    transition: transform 0.3s ease;
-    font-family: var(--font-family);
-}
-
-.install-banner.hidden {
-    transform: translateY(-100%);
-}
-
-.install-content {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    max-width: 800px;
-    margin: 0 auto;
-}
-
-.install-icon {
-    font-size: 1.2rem;
-}
-
-.install-text {
-    color: var(--foreground-color);
-    font-family: var(--font-family);
-    font-size: 0.9rem;
-    flex: 1;
-    text-align: center;
-}
-
-.install-btn {
-    background: var(--accent-color);
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    font-family: var(--font-family);
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.install-btn:hover {
-    background: var(--accent-hover-color);
-}
-
-.install-dismiss {
-    background: transparent;
-    color: var(--secondary-text-color);
-    border: none;
-    font-size: 1.2rem;
-    cursor: pointer;
-    padding: 0.25rem;
-    line-height: 1;
-}
-
-.install-dismiss:hover {
-    color: var(--foreground-color);
-}
-
 .connection-status {
     position: fixed !important;
     top: 0 !important;
@@ -340,11 +272,6 @@ html, body {
 }
 
 
-@media (display-mode: standalone) {
-    .install-banner {
-        display: none !important;
-    }
-}
 
 @keyframes pulse {
     0%, 100% { opacity: 1; }

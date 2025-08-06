@@ -38,18 +38,6 @@
 </head>
 <body>
     <!-- ============================================================================ -->
-    <!-- PWA INSTALLATION BANNER -->
-    <!-- ============================================================================ -->
-    <div id="install-banner" class="install-banner hidden">
-        <div class="install-content">
-            <span class="install-icon">📱</span>
-            <span class="install-text">Install PorTTY as an app for better experience</span>
-            <button id="install-button" class="install-btn">Install</button>
-            <button id="dismiss-install" class="install-dismiss">×</button>
-        </div>
-    </div>
-    
-    <!-- ============================================================================ -->
     <!-- CONNECTION STATUS INDICATOR -->
     <!-- ============================================================================ -->
     <div id="connection-status" class="connection-status force-visible">
@@ -106,43 +94,6 @@
             });
         }
         
-        // ============================================================================
-        // PWA INSTALLATION HANDLING
-        // ============================================================================
-        
-        let deferredPrompt;
-        const installBanner = document.getElementById('install-banner');
-        const installButton = document.getElementById('install-button');
-        const dismissInstall = document.getElementById('dismiss-install');
-        
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            
-            if (!localStorage.getItem('pwa-install-dismissed')) {
-                installBanner.classList.remove('hidden');
-            }
-        });
-        
-        installButton.addEventListener('click', async () => {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                console.log(`User response to install prompt: ${outcome}`);
-                deferredPrompt = null;
-                installBanner.classList.add('hidden');
-            }
-        });
-        
-        dismissInstall.addEventListener('click', () => {
-            installBanner.classList.add('hidden');
-            localStorage.setItem('pwa-install-dismissed', 'true');
-        });
-        
-        window.addEventListener('appinstalled', () => {
-            installBanner.classList.add('hidden');
-            console.log('PWA was installed');
-        });
     </script>
     
     <!-- ============================================================================ -->
