@@ -179,11 +179,6 @@ func (sm *ServerManager) Start(ctx context.Context, address string) error {
 		sm.wsHandler.HandleWS(appCtx, w, r)
 	})
 
-	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "image/x-icon")
-		w.WriteHeader(http.StatusNoContent)
-	})
-
 	webFS, err := fs.Sub(webContent, "assets")
 	if err != nil {
 		return fmt.Errorf("failed to create sub-filesystem for embedded assets: %w", err)
@@ -474,7 +469,7 @@ func showHelp() {
 // ============================================================================
 
 // runServer starts the PorTTY server using the new interface-based architecture
-func runServer(address string, pidFilePath string) {
+func runServer(address string) {
 	// Create server manager with dependency injection
 	serverManager := NewServerManager()
 
@@ -485,120 +480,31 @@ func runServer(address string, pidFilePath string) {
 	}
 }
 
-// runServerLegacy provides the original implementation for backward compatibility
-func runServerLegacy(address string, pidFilePath string) {
-	if !checkTmuxInstalled() {
-		logger.ServerLogger.Fatal("tmux is not installed. Please install tmux to use PorTTY", fmt.Errorf("tmux not found in PATH"))
-	}
-
-	host, port, err := parseAddress(address)
-	if err != nil {
-		logger.ServerLogger.Fatal("failed to parse server address", err, logger.String("address", address))
-	}
-
-	if checkSessionExists(cfg.Server.SessionName) {
-		logger.ServerLogger.Info("Found existing tmux session", logger.String("session", cfg.Server.SessionName))
-	}
-
-	pid := os.Getpid()
-	if err := os.WriteFile(pidFilePath, []byte(strconv.Itoa(pid)), cfg.Server.PidFilePermissions); err != nil {
-		logger.ServerLogger.Warn("failed to write PID file", logger.String("path", pidFilePath), logger.Error(err))
-	}
-
-	// Create application-level context for coordinated shutdown
-	appCtx, appCancel := context.WithCancel(context.Background())
-	defer appCancel()
-
-	mux := http.NewServeMux()
-
-	// Pass application context to WebSocket handler
-	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		websocket.HandleWS(appCtx, w, r)
-	})
-
-	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "image/x-icon")
-		w.WriteHeader(http.StatusNoContent)
-	})
-
-	webFS, err := fs.Sub(webContent, "assets")
-	if err != nil {
-		logger.ServerLogger.Fatal("failed to create sub-filesystem for embedded assets", err)
-	}
-
-	fileServer := http.FileServer(http.FS(webFS))
-	mux.Handle("/", fileServer)
-
-	bindAddr := fmt.Sprintf("%s:%d", host, port)
-	server := &http.Server{
-		Addr:    bindAddr,
-		Handler: mux,
-	}
-
-	// Start HTTP server in goroutine
-	serverErrChan := make(chan error, 1)
-	go func() {
-		logger.ServerLogger.Info("Starting PorTTY", logger.String("url", "http://"+bindAddr))
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			serverErrChan <- err
-		}
-	}()
-
-	// Setup signal handling for graceful shutdown
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-
-	// Wait for shutdown signal or server error
-	select {
-	case <-stop:
-		logger.ServerLogger.Info("Received shutdown signal")
-	case err := <-serverErrChan:
-		logger.ServerLogger.Fatal("HTTP server failed", err, logger.String("address", bindAddr))
-	case <-appCtx.Done():
-		logger.ServerLogger.Info("Application context cancelled")
-	}
-
-	// Begin coordinated shutdown sequence
-	logger.ServerLogger.Info("Beginning graceful shutdown")
-
-	// Cancel application context to signal all components to shutdown
-	appCancel()
-
-	// Create shutdown context with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
-	defer shutdownCancel()
-
-	// Shutdown HTTP server
-	logger.ServerLogger.Info("Shutting down HTTP server")
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		logger.ServerLogger.Error("failed to gracefully shutdown HTTP server", err)
-	}
-
-	// Clean up PID file
-	if err := os.Remove(pidFilePath); err != nil && !os.IsNotExist(err) {
-		logger.ServerLogger.Warn("failed to remove PID file", logger.String("path", pidFilePath), logger.Error(err))
-	}
-
-	// Clean up tmux sessions
-	logger.ServerLogger.Info("Cleaning up tmux sessions")
-	cleanupTmuxSessions(shutdownCtx)
-
-	logger.ServerLogger.Info("Server gracefully stopped")
-}
-
 // cleanupTmuxSessions performs context-aware cleanup of tmux sessions
 func cleanupTmuxSessions(ctx context.Context) {
 	// Create timeout context for tmux cleanup operations
 	cleanupCtx, cleanupCancel := context.WithTimeout(ctx, cfg.Server.TmuxCleanupTimeout)
 	defer cleanupCancel()
 
-	// Kill main session
-	killCmd := exec.CommandContext(cleanupCtx, "tmux", "kill-session", "-t", cfg.Server.SessionName)
-	if err := killCmd.Run(); err != nil {
+	// Check if main session exists before attempting to kill it
+	checkCmd := exec.CommandContext(cleanupCtx, "tmux", "has-session", "-t", cfg.Server.SessionName)
+	if err := checkCmd.Run(); err != nil {
 		if err == context.DeadlineExceeded {
-			logger.ServerLogger.Warn("tmux session kill timed out", logger.String("session", cfg.Server.SessionName))
+			logger.ServerLogger.Warn("tmux session check timed out", logger.String("session", cfg.Server.SessionName))
 		} else {
-			logger.ServerLogger.Error("failed to kill tmux session", err, logger.String("session", cfg.Server.SessionName))
+			logger.ServerLogger.Info("tmux session does not exist, skipping cleanup", logger.String("session", cfg.Server.SessionName))
+		}
+	} else {
+		// Session exists, kill it
+		killCmd := exec.CommandContext(cleanupCtx, "tmux", "kill-session", "-t", cfg.Server.SessionName)
+		if err := killCmd.Run(); err != nil {
+			if err == context.DeadlineExceeded {
+				logger.ServerLogger.Warn("tmux session kill timed out", logger.String("session", cfg.Server.SessionName))
+			} else {
+				logger.ServerLogger.Error("failed to kill tmux session", err, logger.String("session", cfg.Server.SessionName))
+			}
+		} else {
+			logger.ServerLogger.Info("successfully killed tmux session", logger.String("session", cfg.Server.SessionName))
 		}
 	}
 
@@ -713,7 +619,7 @@ func main() {
 			}
 		}
 
-		runServer(address, pidFilePath)
+		runServer(address)
 	case "stop":
 		if len(os.Args) > 2 && (os.Args[2] == "-h" || os.Args[2] == "--help") {
 			showStopHelp()
