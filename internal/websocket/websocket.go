@@ -25,12 +25,6 @@ import (
 // Configuration instance
 var cfg = config.Default
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  int(cfg.WebSocket.ReadBufferSize),
-	WriteBufferSize: int(cfg.WebSocket.WriteBufferSize),
-	CheckOrigin:     func(r *http.Request) bool { return true },
-}
-
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
