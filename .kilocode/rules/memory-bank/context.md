@@ -77,3 +77,9 @@
 - Add comprehensive unit tests leveraging new interface-based architecture
 - Monitor PWA installation and usage patterns
 - Plan for v0.3 features based on user feedback
+
+## Identified Issues & Future Features
+- **Connection Status on Localhost**: Hide connection status indicators and info button when running on localhost for cleaner local development experience
+- **Dynamic Terminal Resize Bug**: Terminal only resizes once on load/reload instead of dynamically responding to window size changes - needs proper resize event handling
+- **Default Shell Option**: Add configuration option to use user's default shell directly instead of tmux, configurable during installation
+- **Terminal Space Optimization**: Terminal doesn't fully utilize available viewport space - needs improved layout and dynamic canvas sizing for better space utilization
