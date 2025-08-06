@@ -9,6 +9,14 @@
 - Progressive Web App features fully implemented
 
 ## Recent Work
+- **Localhost Connection Status Fix (Latest)**:
+  - Implemented automatic localhost detection to hide connection status indicators
+  - Added `isRunningOnLocalhost()` utility function detecting localhost, 127.0.0.1, and ::1
+  - Enhanced ConnectionStatusManager class with localhost-aware behavior
+  - Connection status indicator, text, and info button now hidden on localhost for cleaner development experience
+  - Production functionality remains fully intact on remote servers
+  - Zero configuration required - automatic hostname-based detection
+
 - **v0.2 Complete Backend Refactoring**:
   - Comprehensive 5-phase architectural transformation from v0.1 to v0.2
   - Interface-based architecture with dependency injection for better testability
@@ -18,7 +26,7 @@
   - Comprehensive interface definitions (`internal/interfaces/interfaces.go`)
   - Factory patterns for testable component creation
 
-- **PWA Loading Spinner Fix (Latest)**:
+- **PWA Loading Spinner Fix**:
   - Fixed invalid SVG screenshot in manifest.json containing `<txt>` elements instead of `<text>` elements
   - Removed duplicate PWA installation handlers causing user gesture conflicts
   - Corrected base64-encoded SVG screenshot for proper PWA installation preview
@@ -79,7 +87,6 @@
 - Plan for v0.3 features based on user feedback
 
 ## Identified Issues & Future Features
-- **Connection Status on Localhost**: Hide connection status indicators and info button when running on localhost for cleaner local development experience
 - **Dynamic Terminal Resize Bug**: Terminal only resizes once on load/reload instead of dynamically responding to window size changes - needs proper resize event handling
 - **Default Shell Option**: Add configuration option to use user's default shell directly instead of tmux, configurable during installation
 - **Terminal Space Optimization**: Terminal doesn't fully utilize available viewport space - needs improved layout and dynamic canvas sizing for better space utilization
