@@ -23,41 +23,72 @@ PorTTY follows a clean, modular architecture with clear separation of concerns:
 ## Core Components
 
 ### 1. Main Application (`cmd/portty/main.go`)
-- **Purpose**: Entry point and HTTP server management
+- **Purpose**: Entry point and HTTP server management with interface-based architecture
 - **Key Functions**:
-  - `runServer()`: Starts HTTP server and handles shutdown
+  - `NewServerManager()`: Creates server manager with dependency injection
+  - `runServer()`: Starts HTTP server using interface-based approach
   - `parseAddress()`: Validates and parses bind address
   - `checkTmuxInstalled()`: Ensures tmux dependency
 - **Design Decisions**:
+  - Interface-based architecture for better testability
+  - Dependency injection for component management
   - Embedded web assets for single binary distribution
-  - Graceful shutdown with cleanup
+  - Graceful shutdown with coordinated cleanup
   - PID file management for process control
 
-### 2. PTY Bridge (`internal/ptybridge/ptybridge.go`)
-- **Purpose**: Manages pseudo-terminal and tmux session lifecycle
+### 2. Configuration Management (`internal/config/config.go`)
+- **Purpose**: Centralized configuration with structured types
+- **Key Features**:
+  - Structured configuration types for all components
+  - Default values and constants centralization
+  - Type-safe configuration access
+  - Environment-specific settings
+
+### 3. Structured Logging (`internal/logger/logger.go`)
+- **Purpose**: Component-specific logging with contextual fields
+- **Key Features**:
+  - Component-specific loggers (Server, WebSocket, PTYBridge)
+  - Structured logging with contextual fields
+  - Consistent log formatting across components
+  - Error context preservation
+
+### 4. Interface Definitions (`internal/interfaces/interfaces.go`)
+- **Purpose**: Comprehensive interface definitions for all components
+- **Key Features**:
+  - Complete interface coverage for testability
+  - Clear component boundaries and contracts
+  - Factory pattern interfaces for component creation
+  - Dependency injection support
+
+### 5. PTY Bridge (`internal/ptybridge/ptybridge.go`)
+- **Purpose**: Context-aware pseudo-terminal and tmux session lifecycle management
 - **Key Functions**:
-  - `New()`: Creates or attaches to tmux session
-  - `ProcessInput()`: Handles client messages (input, resize, keepalive)
-  - `Read()/Write()`: Direct PTY I/O operations
+  - `New()`: Creates or attaches to tmux session with context support
+  - `ProcessInput()`: Handles client messages (input, resize, keepalive) with context awareness
+  - `Read()/Write()`: Context-aware PTY I/O operations
+  - `Close()`: Closes PTY connection while preserving tmux session for reconnection
 - **Design Patterns**:
   - Singleton tmux session per server instance
   - Session persistence across connections
+  - Context-aware operations with cancellation support
   - Clean separation of concerns for PTY operations
 
-### 3. WebSocket Handler (`internal/websocket/websocket.go`)
-- **Purpose**: Real-time bidirectional communication
+### 6. WebSocket Handler (`internal/websocket/websocket.go`)
+- **Purpose**: Interface-based real-time bidirectional communication
 - **Key Functions**:
-  - `HandleWS()`: Main WebSocket connection handler
+  - `NewHandler()`: Creates WebSocket handler with PTY factory injection
+  - `HandleWS()`: Main WebSocket connection handler with context support
   - Three concurrent goroutines:
     1. Read from WebSocket → PTY
     2. Process messages from channel
     3. Read from PTY → WebSocket
 - **Design Patterns**:
+  - Interface-based dependency injection
   - Channel-based message buffering
-  - Context-based cancellation
+  - Context-based cancellation and coordination
   - Graceful connection lifecycle management
 
-### 4. Frontend (`cmd/portty/assets/`)
+### 7. Frontend (`cmd/portty/assets/`)
 - **Components**:
   - `index.html`: PWA-enabled HTML structure with meta tags
   - `terminal.css`: Centralized styling using CSS custom properties
@@ -77,46 +108,69 @@ PorTTY follows a clean, modular architecture with clear separation of concerns:
 1. **Connection Establishment**:
    - Browser requests `/` → Serves embedded HTML/CSS/JS
    - JavaScript initiates WebSocket connection to `/ws`
-   - Server creates PTY bridge to tmux session
-   - Bidirectional data flow established
+   - Server creates PTY bridge to tmux session via factory pattern
+   - Bidirectional data flow established with context coordination
 
 2. **Input Processing**:
    - User keystrokes → xterm.js → WebSocket → PTY bridge → tmux
-   - Special messages (resize, keepalive) handled separately
+   - Special messages (resize, keepalive) handled separately with context awareness
 
 3. **Output Processing**:
    - tmux output → PTY → WebSocket → xterm.js → Browser display
-   - Buffered reading for performance
+   - Buffered reading for performance with context cancellation support
 
 ## Key Design Decisions
 
-1. **Single Binary Distribution**:
+1. **Interface-Based Architecture (v0.2)**:
+   - All components implement well-defined interfaces
+   - Dependency injection for better testability
+   - Factory patterns for component creation
+   - Clear separation of concerns and contracts
+
+2. **Context Propagation (v0.2)**:
+   - Application-level context for coordinated shutdown
+   - Context-aware operations throughout the stack
+   - Graceful cancellation and cleanup coordination
+
+3. **Centralized Configuration (v0.2)**:
+   - Structured configuration types
+   - Constants and defaults centralization
+   - Type-safe configuration access
+
+4. **Structured Logging (v0.2)**:
+   - Component-specific loggers
+   - Contextual field logging
+   - Consistent error handling patterns
+
+5. **Single Binary Distribution**:
    - All assets embedded using Go's `embed` package
    - No external file dependencies except tmux
    - Simplifies deployment and updates
 
-2. **tmux Integration**:
-   - Provides session persistence
+6. **tmux Integration**:
+   - Provides session persistence (verified intact in v0.2)
    - Enables multi-client connections
    - Handles terminal multiplexing
+   - Sessions persist across individual connection closures
 
-3. **Performance Optimizations**:
+7. **Performance Optimizations**:
    - Large buffer sizes (16KB) for data transfer
    - Channel buffering to prevent blocking
    - Debounced resize events
-   - No unnecessary mutex locking
+   - Context-aware operations without unnecessary blocking
 
-4. **Error Handling**:
+8. **Error Handling**:
    - Graceful degradation on errors
    - Automatic reconnection logic
    - Clear error messaging to users
+   - Structured error context preservation
 
 ## File Structure
 
 ```
 PorTTY/
 ├── cmd/portty/
-│   ├── main.go              # Main application entry
+│   ├── main.go              # Interface-based main application entry
 │   └── assets/              # Embedded web assets
 │       ├── index.html       # PWA-enabled HTML structure
 │       ├── terminal.css     # Centralized styling with CSS custom properties
@@ -125,9 +179,15 @@ PorTTY/
 │       ├── sw.js            # Service worker for offline caching
 │       └── favicon.ico      # Application icon
 ├── internal/
-│   ├── ptybridge/           # PTY and tmux management
+│   ├── config/              # Centralized configuration management
+│   │   └── config.go
+│   ├── interfaces/          # Comprehensive interface definitions
+│   │   └── interfaces.go
+│   ├── logger/              # Structured logging system
+│   │   └── logger.go
+│   ├── ptybridge/           # Context-aware PTY and tmux management
 │   │   └── ptybridge.go
-│   └── websocket/           # WebSocket handling
+│   └── websocket/           # Interface-based WebSocket handling
 │       └── websocket.go
 ├── build.sh                 # Build script
 ├── install.sh               # Installation script
@@ -139,6 +199,20 @@ PorTTY/
 ## Development Standards
 
 PorTTY follows consistent development patterns across all components. Detailed coding standards including file organization, naming conventions, error handling patterns, and project-specific implementation guidelines are documented in the technology stack specifications.
+
+## Session Persistence Behavior (Verified v0.2)
+
+**Critical Feature**: tmux session persistence across connection closures remains fully functional after v0.2 refactoring:
+
+1. **Individual Connection Close**: Only closes PTY bridge, tmux session persists
+2. **New Connection**: Automatically detects and attaches to existing session
+3. **Server Shutdown**: Explicitly kills tmux sessions during cleanup
+4. **Session Continuity**: Users can reconnect and resume exactly where they left off
+
+This behavior is implemented in:
+- [`ptybridge.Close()`](internal/ptybridge/ptybridge.go:252): Preserves tmux session
+- [`ptybridge.New()`](internal/ptybridge/ptybridge.go:74): Checks for existing sessions
+- [`cleanupTmuxSessions()`](cmd/portty/main.go:590): Server shutdown cleanup
 
 ## Security Considerations
 
