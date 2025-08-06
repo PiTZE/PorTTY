@@ -127,6 +127,10 @@ PorTTY/
 └── go.sum                   # Dependency checksums
 ```
 
+## Development Standards
+
+PorTTY follows consistent development patterns across all components. Detailed coding standards including file organization, naming conventions, error handling patterns, and project-specific implementation guidelines are documented in the technology stack specifications.
+
 ## Security Considerations
 
 - No built-in authentication (by design)

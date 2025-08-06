@@ -181,3 +181,29 @@ location / {
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
 }
+```
+
+## Code Organization Standards
+
+### File Structure Patterns
+- Consistent section dividers: `// ============================================================================` for Go files
+- Standardized file organization:
+  1. Package declaration and imports
+  2. Constants and type definitions
+  3. Global variables and configuration
+  4. Utility functions
+  5. Core business logic
+  6. Main execution logic
+- Section headers with descriptive comments in ALL CAPS
+
+### Coding Philosophy
+- **Minimal Commenting**: Function-level documentation only, self-documenting code through clear naming
+- **Naming Conventions**: Standard Go conventions (PascalCase for exported, camelCase for unexported)
+- **Error Handling**: Consistent patterns using `log.Printf()`, `log.Fatalf()` with context wrapping via `fmt.Errorf()` with `%w` verb
+- **Visual Consistency**: Uniform logging patterns and error message formats across components
+
+### Project-Specific Standards
+- **WebSocket Handling**: Consistent connection lifecycle management patterns
+- **PTY Management**: Standardized terminal session handling approaches
+- **Configuration**: Constants for default values and configuration management
+- **Testing**: Go testing conventions with `_test.go` files and proper test organization
