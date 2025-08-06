@@ -177,7 +177,7 @@ PorTTY/
 │       ├── terminal.js      # Enhanced WebSocket client with connection management
 │       ├── manifest.json    # PWA manifest for app installation
 │       ├── sw.js            # Service worker for offline caching
-│       └── favicon.ico      # Application icon
+│       └── icon.svg         # Application icon (SVG)
 ├── internal/
 │   ├── config/              # Centralized configuration management
 │   │   └── config.go

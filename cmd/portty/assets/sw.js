@@ -11,7 +11,7 @@ const STATIC_ASSETS = [
     '/terminal.css',
     '/terminal.js',
     '/manifest.json',
-    '/favicon.ico',
+    '/icon.svg',
     'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css',
     'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js',
     'https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js',
@@ -318,8 +318,8 @@ self.addEventListener('push', (event) => {
     
     const options = {
         body: 'Terminal activity detected',
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
+        icon: '/icon.svg',
+        badge: '/icon.svg',
         tag: 'terminal-activity',
         requireInteraction: false,
         actions: [
