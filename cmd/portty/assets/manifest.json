@@ -1,0 +1,68 @@
+{
+  "name": "PorTTY",
+  "short_name": "PorTTY",
+  "version": "0.2",
+  "description": "Browser-based terminal access with persistent sessions.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "any",
+  "scope": "/",
+  "categories": ["productivity", "utilities", "developer"],
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/x-icon",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiBmaWxsPSIjMDAwMDAwIi8+CjxyZWN0IHg9IjE2IiB5PSIzMiIgd2lkdGg9IjE2MCIgaGVpZ2h0PSIxMjgiIHJ4PSI4IiBzdHJva2U9IiNmMGYwZjAiIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIvPgo8dGV4dCB4PSIzMiIgeT0iNzIiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNmMGYwZjAiPiQ8L3RleHQ+CjxyZWN0IHg9IjQ4IiB5PSI1NiIgd2lkdGg9IjEyIiBoZWlnaHQ9IjQiIGZpbGw9IiNmMGYwZjAiLz4KPC9zdmc+",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiBmaWxsPSIjMDAwMDAwIi8+CjxyZWN0IHg9IjQ4IiB5PSI5NiIgd2lkdGg9IjQxNiIgaGVpZ2h0PSIzMjAiIHJ4PSIxNiIgc3Ryb2tlPSIjZjBmMGYwIiBzdHJva2Utd2lkdGg9IjgiIGZpbGw9Im5vbmUiLz4KPHR4dCB4PSI4MCIgeT0iMTkyIiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjQ4IiBmaWxsPSIjZjBmMGYwIj4kPC90ZXh0Pgo8cmVjdCB4PSIxMjgiIHk9IjE2MCIgd2lkdGg9IjMyIiBoZWlnaHQ9IjE2IiBmaWxsPSIjZjBmMGYwIi8+Cjx0ZXh0IHg9IjgwIiB5PSIyNzIiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiM4MGZmODAiPlBvclRUWTwvdGV4dD4KPC9zdmc+",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTI4MCIgaGVpZ2h0PSI3MjAiIHZpZXdCb3g9IjAgMCAxMjgwIDcyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEyODAiIGhlaWdodD0iNzIwIiBmaWxsPSIjMDAwMDAwIi8+CjxyZWN0IHg9IjMyIiB5PSIzMiIgd2lkdGg9IjEyMTYiIGhlaWdodD0iNjU2IiByeD0iMTYiIHN0cm9rZT0iIzMzMzMzMyIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIi8+Cjx0ZXh0IHg9IjY0IiB5PSIxMjAiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiNmMGYwZjAiPnVzZXJAc2VydmVyOi9ob21lL3VzZXIkPC90ZXh0Pgo8cmVjdCB4PSI0MDAiIHk9IjEwNCIgd2lkdGg9IjE2IiBoZWlnaHQ9IjI0IiBmaWxsPSIjZjBmMGYwIi8+Cjx0ZXh0IHg9IjY0IiB5PSIxODAiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiM4MGZmODAiPkNvbm5lY3RlZCB0byB0ZXJtaW5hbCBzZXJ2ZXI8L3RleHQ+Cjx0ZXh0IHg9IjY0IiB5PSIyNDAiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiNmMGYwZjAiPmxzIC1sYTwvdGV4dD4KPHR4dCB4PSI2NCIgeT0iMjgwIiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjE4IiBmaWxsPSIjYzBjMGMwIj5kcnd4ci14ci14IDMgdXNlciBncm91cCAgNDA5NiBKYW4gMTUgMTA6MzAgLjwvdGV4dD4KPHR4dCB4PSI2NCIgeT0iMzIwIiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjE4IiBmaWxsPSIjYzBjMGMwIj5kcnd4ci14ci14IDMgdXNlciBncm91cCAgNDA5NiBKYW4gMTUgMTA6MzAgLi48L3RleHQ+Cjx0ZXh0IHg9IjY0IiB5PSIzNjAiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM4MGZmODAiPi1yd3hyLXhyLXggMSB1c2VyIGdyb3VwICAgNTEyIEphbiAxNSAxMDozMCBmaWxlLnR4dDwvdGV4dD4KPC9zdmc+",
+      "sizes": "1280x720",
+      "type": "image/svg+xml",
+      "form_factor": "wide",
+      "label": "PorTTY Terminal Interface"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Terminal",
+      "short_name": "Terminal",
+      "description": "Open a new terminal session",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/favicon.ico",
+          "sizes": "32x32"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false,
+  "protocol_handlers": [
+    {
+      "protocol": "ssh",
+      "url": "/?ssh=%s"
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 400
+  }
+}

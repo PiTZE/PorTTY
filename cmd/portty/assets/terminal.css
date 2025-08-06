@@ -1,24 +1,42 @@
-html, body { 
-    margin: 0; 
-    padding: 0; 
-    height: 100vh; 
+/* ============================================================================ */
+/* CSS CUSTOM PROPERTIES - CENTRALIZED CONFIGURATION */
+/* ============================================================================ */
+
+:root {
+    --font-family: 'JetBrains Mono', monospace;
+    --font-size: 14px;
+    --background-color: #000000;
+    --foreground-color: #f0f0f0;
+    --cursor-color: #ffffff;
+    --border-color: #333333;
+    --accent-color: #0066cc;
+    --success-color: #80ff80;
+    --warning-color: #ffff80;
+    --error-color: #ff8080;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
     width: 100vw;
-    background: #000; 
+    background: var(--background-color);
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    font-family: var(--font-family);
 }
 
-#terminal-container { 
+#terminal-container {
     flex: 1;
-    width: 100%; 
-    height: 100%; 
+    width: 100%;
+    height: 100%;
     display: flex;
 }
 
 .terminal {
-    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', Menlo, Monaco, 'Courier New', monospace;
-    font-size: 14px;
+    font-family: var(--font-family);
+    font-size: var(--font-size);
 }
 
 .xterm {
@@ -56,8 +74,8 @@ html, body {
 }
 
 .xterm .composition-view {
-    background: #000;
-    color: #FFF;
+    background: var(--background-color);
+    color: var(--foreground-color);
     display: none;
     position: absolute;
     white-space: nowrap;
@@ -65,7 +83,7 @@ html, body {
 }
 
 .xterm .xterm-viewport {
-    background-color: #000;
+    background-color: var(--background-color);
     overflow-y: auto !important;
     cursor: default;
     position: absolute;
@@ -98,4 +116,271 @@ html, body {
 
 .xterm-selection div {
     position: absolute;
+}
+
+/* ============================================================================ */
+/* PWA ENHANCEMENTS */
+/* ============================================================================ */
+
+/* Install Banner */
+.install-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.75rem;
+    z-index: 1000;
+    transition: transform 0.3s ease;
+    font-family: var(--font-family);
+}
+
+.install-banner.hidden {
+    transform: translateY(-100%);
+}
+
+.install-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.install-icon {
+    font-size: 1.2rem;
+}
+
+.install-text {
+    color: var(--foreground-color);
+    font-family: var(--font-family);
+    font-size: 0.9rem;
+    flex: 1;
+    text-align: center;
+}
+
+.install-btn {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-family: var(--font-family);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.install-btn:hover {
+    background: #0052a3;
+}
+
+.install-dismiss {
+    background: transparent;
+    color: #999;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    line-height: 1;
+}
+
+.install-dismiss:hover {
+    color: var(--foreground-color);
+}
+
+/* Connection Status */
+.connection-status {
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    background: rgba(0, 0, 0, 0.8) !important;
+    backdrop-filter: blur(4px);
+    padding: 0.5rem 1rem !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-family);
+    font-size: 0.8rem;
+    z-index: 9999 !important;
+    border-bottom-left-radius: 4px;
+    border-left: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    pointer-events: auto !important;
+}
+
+.connection-status.hidden {
+    display: none !important;
+}
+
+.status-indicator {
+    font-size: 0.6rem;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.connected {
+    color: var(--success-color);
+    animation: none;
+}
+
+.status-indicator.connecting {
+    color: var(--warning-color);
+}
+
+.status-indicator.disconnected {
+    color: var(--error-color);
+    animation: none;
+}
+
+.status-indicator.offline {
+    color: var(--error-color);
+    animation: none;
+}
+
+.status-text {
+    color: var(--foreground-color);
+    font-size: 0.75rem;
+}
+
+.offline-btn, .online-btn {
+    background: var(--border-color);
+    color: var(--foreground-color);
+    border: 1px solid #555;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    font-family: var(--font-family);
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.offline-btn:hover, .online-btn:hover {
+    background: #555;
+}
+
+/* Offline Mode UI */
+.offline-ui {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.95);
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    z-index: 1001;
+    backdrop-filter: blur(8px);
+    max-width: 400px;
+    width: 90%;
+}
+
+.offline-ui.hidden {
+    display: none;
+}
+
+.offline-header h3 {
+    color: var(--success-color);
+    margin: 0 0 0.5rem 0;
+    font-family: var(--font-family);
+}
+
+.offline-header p {
+    color: #ccc;
+    margin: 0 0 1.5rem 0;
+    font-family: var(--font-family);
+    font-size: 0.9rem;
+}
+
+.online-btn {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+.online-btn:hover {
+    background: #0052a3;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .install-content {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .install-text {
+        font-size: 0.8rem;
+    }
+    
+    .connection-status {
+        position: relative;
+        top: auto;
+        right: auto;
+        width: 100%;
+        justify-content: center;
+        border-radius: 0;
+        border: none;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .offline-ui {
+        width: 95%;
+        padding: 1.5rem;
+    }
+}
+
+/* PWA-specific styles when installed */
+@media (display-mode: standalone) {
+    .install-banner {
+        display: none !important;
+    }
+    
+    /* Add some top padding to account for status bar on mobile */
+    body {
+        padding-top: env(safe-area-inset-top);
+    }
+    
+    #terminal-container {
+        padding-top: 0;
+    }
+}
+
+/* Animations */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Terminal adjustments for PWA */
+.terminal.pwa-mode {
+    /* Adjust terminal for PWA context */
+    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+/* Loading states */
+.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid var(--border-color);
+    border-top-color: var(--success-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }

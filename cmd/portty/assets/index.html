@@ -1,21 +1,147 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- ============================================================================ -->
+    <!-- DOCUMENT METADATA -->
+    <!-- ============================================================================ -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PorTTY</title>
+    <title>PorTTY - Browser Terminal</title>
+    <meta name="description" content="Browser-based terminal access with persistent sessions and offline capabilities">
+    
+    <!-- ============================================================================ -->
+    <!-- PWA CONFIGURATION -->
+    <!-- ============================================================================ -->
+    <meta name="theme-color" content="#000000">
+    <meta name="background-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PorTTY">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="msapplication-TileColor" content="#000000">
+    <meta name="msapplication-tap-highlight" content="no">
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- ============================================================================ -->
+    <!-- ICONS AND RESOURCES -->
+    <!-- ============================================================================ -->
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiBmaWxsPSIjMDAwMDAwIi8+CjxyZWN0IHg9IjE2IiB5PSIzMiIgd2lkdGg9IjE2MCIgaGVpZ2h0PSIxMjgiIHJ4PSI4IiBzdHJva2U9IiNmMGYwZjAiIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIvPgo8dGV4dCB4PSIzMiIgeT0iNzIiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNmMGYwZjAiPiQ8L3RleHQ+CjxyZWN0IHg9IjQ4IiB5PSI1NiIgd2lkdGg9IjEyIiBoZWlnaHQ9IjQiIGZpbGw9IiNmMGYwZjAiLz4KPC9zdmc+">
+    
+    <!-- ============================================================================ -->
+    <!-- EXTERNAL STYLESHEETS -->
+    <!-- ============================================================================ -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap">
     <link rel="stylesheet" href="/terminal.css">
 </head>
 <body>
-    <div id="terminal-container"></div>
-    <!-- Load xterm.js core -->
+    <!-- ============================================================================ -->
+    <!-- PWA INSTALLATION BANNER -->
+    <!-- ============================================================================ -->
+    <div id="install-banner" class="install-banner hidden">
+        <div class="install-content">
+            <span class="install-icon">📱</span>
+            <span class="install-text">Install PorTTY as an app for better experience</span>
+            <button id="install-button" class="install-btn">Install</button>
+            <button id="dismiss-install" class="install-dismiss">×</button>
+        </div>
+    </div>
+    
+    <!-- ============================================================================ -->
+    <!-- CONNECTION STATUS INDICATOR -->
+    <!-- ============================================================================ -->
+    <div id="connection-status" class="connection-status" style="display: flex !important; visibility: visible !important;">
+        <span id="status-indicator" class="status-indicator connecting">●</span>
+        <span id="status-text" class="status-text">Connecting...</span>
+        <button id="offline-mode-btn" class="offline-btn">Connection Info</button>
+    </div>
+    
+    <!-- ============================================================================ -->
+    <!-- MAIN TERMINAL INTERFACE -->
+    <!-- ============================================================================ -->
+    <main id="terminal-container"></main>
+    
+    <!-- ============================================================================ -->
+    <!-- CONNECTION ERROR MODAL -->
+    <!-- ============================================================================ -->
+    <div id="offline-ui" class="offline-ui hidden">
+        <div class="offline-header">
+            <h3>⚠️ Connection Error</h3>
+            <p>Cannot connect to PorTTY server</p>
+            <button id="online-mode-btn" class="online-btn">Try Reconnect</button>
+        </div>
+    </div>
+    
+    <!-- ============================================================================ -->
+    <!-- EXTERNAL JAVASCRIPT LIBRARIES -->
+    <!-- ============================================================================ -->
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
-    <!-- Load the correct addon versions for xterm.js 5.5.0 -->
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-attach@0.11.0/lib/addon-attach.js"></script>
-    <!-- Load our script -->
+    
+    <!-- ============================================================================ -->
+    <!-- PWA SERVICE WORKER REGISTRATION -->
+    <!-- ============================================================================ -->
+    <script>
+        // ============================================================================
+        // SERVICE WORKER REGISTRATION
+        // ============================================================================
+        
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch((registrationError) => {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
+        
+        // ============================================================================
+        // PWA INSTALLATION HANDLING
+        // ============================================================================
+        
+        let deferredPrompt;
+        const installBanner = document.getElementById('install-banner');
+        const installButton = document.getElementById('install-button');
+        const dismissInstall = document.getElementById('dismiss-install');
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            if (!localStorage.getItem('pwa-install-dismissed')) {
+                installBanner.classList.remove('hidden');
+            }
+        });
+        
+        installButton.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`User response to install prompt: ${outcome}`);
+                deferredPrompt = null;
+                installBanner.classList.add('hidden');
+            }
+        });
+        
+        dismissInstall.addEventListener('click', () => {
+            installBanner.classList.add('hidden');
+            localStorage.setItem('pwa-install-dismissed', 'true');
+        });
+        
+        window.addEventListener('appinstalled', () => {
+            installBanner.classList.add('hidden');
+            console.log('PWA was installed');
+        });
+    </script>
+    
+    <!-- ============================================================================ -->
+    <!-- MAIN APPLICATION SCRIPT -->
+    <!-- ============================================================================ -->
     <script src="/terminal.js"></script>
 </body>
 </html>
