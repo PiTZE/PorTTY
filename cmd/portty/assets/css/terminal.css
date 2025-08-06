@@ -3,7 +3,7 @@
 /* ============================================================================ */
 
 :root {
-    --font-family: 'JetBrains Mono', monospace;
+    --font-family: 'JetBrainsMono Nerd Font', 'JetBrainsMono NF', 'JetBrainsMono Nerd Font Mono', 'JetBrainsMonoNL Nerd Font', 'JetBrains Mono', 'Meslo LG M for Powerline', 'Meslo LG M DZ for Powerline', 'MesloLGM Nerd Font', 'Hack Nerd Font', 'Source Code Pro', monospace;
     --font-size: 14px;
     --background-color: #000000;
     --foreground-color: #f0f0f0;
@@ -101,6 +101,14 @@ html, body {
     left: 0;
     top: 0;
     bottom: 0;
+    /* Hide scrollbar while maintaining scrollback functionality */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+/* Hide scrollbar for WebKit browsers (Chrome, Safari, Edge) */
+.xterm .xterm-viewport::-webkit-scrollbar {
+    display: none;
 }
 
 .xterm .xterm-screen {

@@ -360,17 +360,42 @@ function initializePorTTY() {
     const performInitialFit = () => {
         const container = document.getElementById('terminal-container');
         if (container && container.offsetWidth > 0 && container.offsetHeight > 0) {
-            fitAddon.fit();
-            term.focus();
+            try {
+                fitAddon.fit();
+                term.focus();
+                // Send initial resize to ensure backend knows the correct size
+                sendResize(term);
+            } catch (error) {
+                console.error('[PorTTY] Error during initial fit:', error);
+                // Retry once more after a short delay
+                setTimeout(() => {
+                    try {
+                        fitAddon.fit();
+                        sendResize(term);
+                    } catch (retryError) {
+                        console.error('[PorTTY] Retry fit also failed:', retryError);
+                    }
+                }, 100);
+            }
         } else {
             // If container not ready, try again
             setTimeout(performInitialFit, 10);
         }
     };
     
+    // Use multiple timing strategies to ensure proper initialization
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             performInitialFit();
+            
+            // Additional fallback after a short delay
+            setTimeout(() => {
+                const container = document.getElementById('terminal-container');
+                if (container && container.offsetWidth > 0 && container.offsetHeight > 0) {
+                    fitAddon.fit();
+                    sendResize(term);
+                }
+            }, 250);
         });
     });
     
@@ -413,7 +438,6 @@ function setupWebSocketConnection(term, fitAddon, connectionManager, socket, rec
         
         socket.addEventListener('open', () => {
             connectionManager.updateStatus('connected');
-            term.write('\r\n\x1b[32mConnected to PorTTY server\x1b[0m\r\n');
             reconnectAttempts = 0;
             
             // Send initial size (terminal already fitted during initialization)

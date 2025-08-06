@@ -78,23 +78,33 @@ func New(parentCtx context.Context) (*PTYBridge, error) {
 	// Create context for this PTY bridge
 	ctx, cancel := context.WithCancel(parentCtx)
 
-	sessionExists := checkSessionExists(cfg.Server.SessionName)
-
 	var cmd *exec.Cmd
 	var ptmx *os.File
 	var err error
+	var sessionName string
 
-	if sessionExists {
-		logger.PTYBridgeLogger.Info("Attaching to existing tmux session", logger.String("session", cfg.Server.SessionName))
-		cmd = exec.CommandContext(ctx, "tmux", "attach-session", "-t", cfg.Server.SessionName)
+	if cfg.Server.UseTmux {
+		// Tmux mode - existing behavior
+		sessionExists := checkSessionExists(cfg.Server.SessionName)
+		sessionName = cfg.Server.SessionName
+
+		if sessionExists {
+			logger.PTYBridgeLogger.Info("Attaching to existing tmux session", logger.String("session", cfg.Server.SessionName))
+			cmd = exec.CommandContext(ctx, "tmux", "attach-session", "-t", cfg.Server.SessionName)
+		} else {
+			logger.PTYBridgeLogger.Info("Creating new tmux session", logger.String("session", cfg.Server.SessionName))
+
+			// Kill any existing session with context
+			killCmd := exec.CommandContext(ctx, "tmux", "kill-session", "-t", cfg.Server.SessionName)
+			killCmd.Run()
+
+			cmd = exec.CommandContext(ctx, "tmux", "new-session", "-s", cfg.Server.SessionName)
+		}
 	} else {
-		logger.PTYBridgeLogger.Info("Creating new tmux session", logger.String("session", cfg.Server.SessionName))
-
-		// Kill any existing session with context
-		killCmd := exec.CommandContext(ctx, "tmux", "kill-session", "-t", cfg.Server.SessionName)
-		killCmd.Run()
-
-		cmd = exec.CommandContext(ctx, "tmux", "new-session", "-s", cfg.Server.SessionName)
+		// Direct shell mode - use user's default shell
+		logger.PTYBridgeLogger.Info("Starting direct shell session", logger.String("shell", cfg.Terminal.DefaultShell))
+		cmd = exec.CommandContext(ctx, cfg.Terminal.DefaultShell)
+		sessionName = "DirectShell"
 	}
 
 	cmd.Env = append(os.Environ(),
@@ -118,13 +128,17 @@ func New(parentCtx context.Context) (*PTYBridge, error) {
 		return nil, fmt.Errorf("failed to set initial terminal size: %w", err)
 	}
 
-	logger.PTYBridgeLogger.Info("Connected to tmux session", logger.String("session", cfg.Server.SessionName))
+	if cfg.Server.UseTmux {
+		logger.PTYBridgeLogger.Info("Connected to tmux session", logger.String("session", cfg.Server.SessionName))
+	} else {
+		logger.PTYBridgeLogger.Info("Connected to direct shell", logger.String("shell", cfg.Terminal.DefaultShell))
+	}
 
 	bridge := &PTYBridge{
 		cmd:         cmd,
 		pty:         ptmx,
 		done:        make(chan struct{}),
-		sessionName: cfg.Server.SessionName,
+		sessionName: sessionName,
 		ctx:         ctx,
 		cancel:      cancel,
 	}
@@ -258,7 +272,11 @@ func (p *PTYBridge) Close() error {
 		close(p.done)
 	}
 
-	logger.PTYBridgeLogger.Info("Client disconnected from tmux session", logger.String("session", p.sessionName))
+	if cfg.Server.UseTmux {
+		logger.PTYBridgeLogger.Info("Client disconnected from tmux session", logger.String("session", p.sessionName))
+	} else {
+		logger.PTYBridgeLogger.Info("Client disconnected from direct shell", logger.String("session", p.sessionName))
+	}
 
 	// Cancel the context to signal shutdown
 	if p.cancel != nil {

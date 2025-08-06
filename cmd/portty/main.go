@@ -142,18 +142,20 @@ func (hsw *HTTPServerWrapper) Shutdown(ctx context.Context) error {
 
 // ServerManager implementations
 func (sm *ServerManager) Start(ctx context.Context, address string) error {
-	// Use the injected dependencies instead of calling functions directly
-	if !sm.processManager.CheckTmuxInstalled() {
-		return fmt.Errorf("tmux is not installed. Please install tmux to use PorTTY")
+	// Only check tmux installation if tmux mode is enabled
+	if cfg.Server.UseTmux {
+		if !sm.processManager.CheckTmuxInstalled() {
+			return fmt.Errorf("tmux is not installed. Please install tmux to use PorTTY with --tmux flag")
+		}
+
+		if sm.processManager.CheckSessionExists(cfg.Server.SessionName) {
+			logger.ServerLogger.Info("Found existing tmux session", logger.String("session", cfg.Server.SessionName))
+		}
 	}
 
 	host, port, err := sm.addressParser.ParseAddress(address)
 	if err != nil {
 		return fmt.Errorf("failed to parse server address: %w", err)
-	}
-
-	if sm.processManager.CheckSessionExists(cfg.Server.SessionName) {
-		logger.ServerLogger.Info("Found existing tmux session", logger.String("session", cfg.Server.SessionName))
 	}
 
 	// Get PID file path
@@ -234,10 +236,12 @@ func (sm *ServerManager) Start(ctx context.Context, address string) error {
 		logger.ServerLogger.Warn("failed to remove PID file", logger.String("path", pidFilePath), logger.Error(err))
 	}
 
-	// Clean up tmux sessions
-	logger.ServerLogger.Info("Cleaning up tmux sessions")
-	if err := sm.tmuxManager.CleanupTmuxSessions(shutdownCtx); err != nil {
-		logger.ServerLogger.Error("failed to cleanup tmux sessions", err)
+	// Clean up tmux sessions only if tmux mode is enabled
+	if cfg.Server.UseTmux {
+		logger.ServerLogger.Info("Cleaning up tmux sessions")
+		if err := sm.tmuxManager.CleanupTmuxSessions(shutdownCtx); err != nil {
+			logger.ServerLogger.Error("failed to cleanup tmux sessions", err)
+		}
 	}
 
 	logger.ServerLogger.Info("Server gracefully stopped")
@@ -383,6 +387,7 @@ func showRunHelp() {
 	fmt.Println("  -h, --help            Show this help message")
 	fmt.Println("  -a, --address ADDR    Specify the address to bind to (format: [host]:[port])")
 	fmt.Println("  -p, --port PORT       Specify the port to listen on")
+	fmt.Println("  --tmux                Use tmux for session management (default: direct shell)")
 	fmt.Println()
 
 	fmt.Println("ARGUMENTS:")
@@ -391,12 +396,13 @@ func showRunHelp() {
 	fmt.Println()
 
 	fmt.Println("EXAMPLES:")
-	fmt.Printf("  %s run                       # Start on localhost:7314\n", programName)
+	fmt.Printf("  %s run                       # Start with direct shell on localhost:7314\n", programName)
+	fmt.Printf("  %s run --tmux                # Start with tmux on localhost:7314\n", programName)
 	fmt.Printf("  %s run :7314                 # Start on all interfaces, port 7314\n", programName)
 	fmt.Printf("  %s run 0.0.0.0:7314          # Start on all interfaces, port 7314\n", programName)
 	fmt.Printf("  %s run -p 7314               # Start on localhost, port 7314\n", programName)
 	fmt.Printf("  %s run -a 0.0.0.0 -p 7314    # Start on all interfaces, port 7314\n", programName)
-	fmt.Printf("  %s run --address localhost --port 7314  # Start on localhost, port 7314\n", programName)
+	fmt.Printf("  %s run --address localhost --port 7314 --tmux  # Start with tmux on localhost, port 7314\n", programName)
 }
 
 // showStopHelp displays help for the stop command
@@ -430,7 +436,7 @@ func showHelp() {
 	version := cfg.Server.Version
 
 	fmt.Printf("PorTTY %s - Web-based Terminal\n", version)
-	fmt.Println("A lightweight, web-based terminal emulator powered by tmux")
+	fmt.Println("A lightweight, web-based terminal emulator with direct shell or tmux support")
 	fmt.Println()
 
 	fmt.Println("USAGE:")
@@ -450,10 +456,12 @@ func showHelp() {
 	fmt.Println("RUN OPTIONS:")
 	fmt.Println("  address        Address to bind to (format: [host]:[port])")
 	fmt.Printf("                 Default: %s\n", cfg.Server.DefaultAddress)
+	fmt.Println("  --tmux         Use tmux for session management (default: direct shell)")
 	fmt.Println()
 
 	fmt.Println("EXAMPLES:")
-	fmt.Printf("  %s run                    # Start on localhost:7314\n", programName)
+	fmt.Printf("  %s run                    # Start with direct shell on localhost:7314\n", programName)
+	fmt.Printf("  %s run --tmux             # Start with tmux on localhost:7314\n", programName)
 	fmt.Printf("  %s run :7314              # Start on all interfaces, port 7314\n", programName)
 	fmt.Printf("  %s run 0.0.0.0:7314       # Start on all interfaces, port 7314\n", programName)
 	fmt.Printf("  %s run localhost:7314     # Start on localhost, port 7314\n", programName)
@@ -612,6 +620,8 @@ func main() {
 					address = fmt.Sprintf("%s:%s", host, port)
 					i++
 				}
+			case "--tmux":
+				cfg.Server.UseTmux = true
 			default:
 				if !strings.HasPrefix(arg, "-") {
 					address = arg
