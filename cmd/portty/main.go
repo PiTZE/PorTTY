@@ -1,5 +1,9 @@
 package main
 
+// ============================================================================
+// IMPORTS
+// ============================================================================
+
 import (
 	"context"
 	"embed"
@@ -20,119 +24,94 @@ import (
 	"github.com/PiTZE/PorTTY/internal/websocket"
 )
 
+// ============================================================================
+// CONSTANTS AND GLOBAL VARIABLES
+// ============================================================================
+
 //go:embed assets
 var webContent embed.FS
 
 const (
-	// SessionName is the name of the tmux session
-	SessionName = "PorTTY"
-	// PidFileName is the name of the file that stores the PID
-	PidFileName = ".portty.pid"
-	// DefaultAddress is the default address to bind to
+	SessionName    = "PorTTY"
+	PidFileName    = ".portty.pid"
 	DefaultAddress = "localhost:7314"
 )
 
-func main() {
-	// Get the home directory for storing the PID file
-	homeDir, err := os.UserHomeDir()
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+// parseAddress parses the address and returns host and port
+func parseAddress(address string) (string, int, error) {
+	host, portStr, err := net.SplitHostPort(address)
 	if err != nil {
-		homeDir = "/tmp" // Fallback to /tmp if we can't get the home directory
-	}
-	pidFilePath := filepath.Join(homeDir, PidFileName)
-
-	// Check for global help and version flags first
-	for _, arg := range os.Args {
-		if arg == "-h" || arg == "--help" {
-			showHelp()
-			return
-		}
-		if arg == "-v" || arg == "--version" {
-			showVersion()
-			return
-		}
+		return "", 0, fmt.Errorf("invalid address format: %w", err)
 	}
 
-	// Parse command line arguments
-	if len(os.Args) < 2 {
-		showHelp()
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid port: %w", err)
+	}
+
+	if host == "" {
+		host = "localhost"
+	}
+
+	return host, port, nil
+}
+
+// checkTmuxInstalled checks if tmux is installed
+func checkTmuxInstalled() bool {
+	_, err := exec.LookPath("tmux")
+	return err == nil
+}
+
+// checkSessionExists checks if a tmux session exists
+func checkSessionExists(sessionName string) bool {
+	cmd := exec.Command("tmux", "has-session", "-t", sessionName)
+	err := cmd.Run()
+	return err == nil
+}
+
+// findAndKillProcess tries to find and kill the PorTTY process by name
+func findAndKillProcess() {
+	log.Println("Trying to find PorTTY process by name...")
+
+	cmd := exec.Command("bash", "-c", "pgrep -f 'portty run'")
+	output, err := cmd.Output()
+	if err != nil {
+		log.Printf("No PorTTY process found")
 		return
 	}
 
-	command := os.Args[1]
-
-	// Handle commands
-	switch command {
-	case "run":
-		// Process run command options
-		address := DefaultAddress
-
-		// Skip the first two arguments (program name and "run" command)
-		args := os.Args[2:]
-		for i := 0; i < len(args); i++ {
-			arg := args[i]
-
-			switch arg {
-			case "-h", "--help":
-				showRunHelp()
-				return
-			case "-a", "--address":
-				if i+1 < len(args) {
-					address = args[i+1]
-					i++ // Skip the next argument
-				}
-			case "-p", "--port":
-				if i+1 < len(args) {
-					port := args[i+1]
-					// Extract host from current address
-					host, _, err := net.SplitHostPort(address)
-					if err != nil {
-						host = "localhost"
-					}
-					if host == "" {
-						host = "localhost"
-					}
-					address = fmt.Sprintf("%s:%s", host, port)
-					i++ // Skip the next argument
-				}
-			default:
-				// If it doesn't start with a dash, treat it as the address
-				if !strings.HasPrefix(arg, "-") {
-					address = arg
-				}
-			}
+	pids := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, pidStr := range pids {
+		if pidStr == "" {
+			continue
 		}
 
-		runServer(address, pidFilePath)
-	case "stop":
-		// Check if the stop command has a help flag
-		if len(os.Args) > 2 && (os.Args[2] == "-h" || os.Args[2] == "--help") {
-			showStopHelp()
-			return
+		pid, err := strconv.Atoi(pidStr)
+		if err != nil {
+			continue
 		}
-		stopServer(pidFilePath)
-	case "help":
-		if len(os.Args) > 2 {
-			// Show help for specific command
-			switch os.Args[2] {
-			case "run":
-				showRunHelp()
-			case "stop":
-				showStopHelp()
-			default:
-				fmt.Printf("Unknown command: %s\n\n", os.Args[2])
-				showHelp()
-			}
-		} else {
-			showHelp()
+
+		process, err := os.FindProcess(pid)
+		if err != nil {
+			continue
 		}
-	case "version":
-		showVersion()
-	default:
-		fmt.Printf("Unknown command: %s\n\n", command)
-		showHelp()
-		os.Exit(1)
+
+		if err := process.Signal(syscall.SIGTERM); err != nil {
+			log.Printf("Failed to send signal to process %d: %v", pid, err)
+			continue
+		}
+
+		log.Printf("Sent termination signal to PorTTY (PID: %d)", pid)
 	}
 }
+
+// ============================================================================
+// HELP AND VERSION FUNCTIONS
+// ============================================================================
 
 // showRunHelp displays help for the run command
 func showRunHelp() {
@@ -194,7 +173,7 @@ func showVersion() {
 // showHelp displays usage information
 func showHelp() {
 	programName := filepath.Base(os.Args[0])
-	version := "v0.1" // Version information
+	version := "v0.1"
 
 	fmt.Printf("PorTTY %s - Web-based Terminal\n", version)
 	fmt.Println("A lightweight, web-based terminal emulator powered by tmux")
@@ -231,92 +210,53 @@ func showHelp() {
 	fmt.Println("For more information, visit: https://github.com/PiTZE/PorTTY")
 }
 
-// parseAddress parses the address and returns host and port
-func parseAddress(address string) (string, int, error) {
-	host, portStr, err := net.SplitHostPort(address)
-	if err != nil {
-		return "", 0, fmt.Errorf("invalid address format: %v", err)
-	}
-
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		return "", 0, fmt.Errorf("invalid port: %v", err)
-	}
-
-	if host == "" {
-		host = "localhost"
-	}
-
-	return host, port, nil
-}
-
-// checkTmuxInstalled checks if tmux is installed
-func checkTmuxInstalled() bool {
-	_, err := exec.LookPath("tmux")
-	return err == nil
-}
-
-// checkSessionExists checks if a tmux session exists
-func checkSessionExists(sessionName string) bool {
-	cmd := exec.Command("tmux", "has-session", "-t", sessionName)
-	err := cmd.Run()
-	return err == nil
-}
+// ============================================================================
+// CORE BUSINESS LOGIC
+// ============================================================================
 
 // runServer starts the PorTTY server
 func runServer(address string, pidFilePath string) {
-	// Check if tmux is installed
 	if !checkTmuxInstalled() {
 		log.Fatalf("tmux is not installed. Please install tmux to use PorTTY.")
 	}
 
-	// Parse the address
 	host, port, err := parseAddress(address)
 	if err != nil {
 		log.Fatalf("Error parsing address: %v", err)
 	}
 
-	// Check if the tmux session already exists
 	if checkSessionExists(SessionName) {
 		log.Printf("Found existing tmux session: %s", SessionName)
 	}
 
-	// Write PID to file
 	pid := os.Getpid()
 	if err := os.WriteFile(pidFilePath, []byte(strconv.Itoa(pid)), 0644); err != nil {
 		log.Printf("Warning: Failed to write PID file: %v", err)
 	}
 
-	// Set up HTTP server
 	mux := http.NewServeMux()
 
-	// Handle WebSocket connections
 	mux.HandleFunc("/ws", websocket.HandleWS)
 
-	// Handle favicon to prevent 404 errors
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/x-icon")
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	// Create a sub-filesystem for the web content
 	webFS, err := fs.Sub(webContent, "assets")
 	if err != nil {
 		log.Fatalf("Failed to create sub-filesystem: %v", err)
 	}
 
-	// Serve static files
 	fileServer := http.FileServer(http.FS(webFS))
 	mux.Handle("/", fileServer)
 
-	// Create HTTP server
 	bindAddr := fmt.Sprintf("%s:%d", host, port)
 	server := &http.Server{
 		Addr:    bindAddr,
 		Handler: mux,
 	}
 
-	// Start server in a goroutine
 	go func() {
 		log.Printf("Starting PorTTY on http://%s", bindAddr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -324,33 +264,26 @@ func runServer(address string, pidFilePath string) {
 		}
 	}()
 
-	// Set up graceful shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
-	// Wait for interrupt signal
 	<-stop
 	log.Println("Shutting down server...")
 
-	// Remove PID file
 	os.Remove(pidFilePath)
 
-	// Kill the main tmux session
 	log.Println("Cleaning up tmux session...")
 	killCmd := exec.Command("tmux", "kill-session", "-t", SessionName)
 	if err := killCmd.Run(); err != nil {
 		log.Printf("Failed to kill tmux session: %v", err)
 	}
 
-	// Also clean up any orphaned sessions with PorTTY prefix
 	cleanupCmd := exec.Command("bash", "-c", "tmux list-sessions -F '#{session_name}' 2>/dev/null | grep '^PorTTY-' | xargs -I{} tmux kill-session -t {} 2>/dev/null || true")
 	cleanupCmd.Run()
 
-	// Create a deadline for graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Attempt graceful shutdown
 	if err := server.Shutdown(ctx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
@@ -360,15 +293,12 @@ func runServer(address string, pidFilePath string) {
 
 // stopServer stops the PorTTY server
 func stopServer(pidFilePath string) {
-	// Read PID from file
 	pidBytes, err := os.ReadFile(pidFilePath)
 	if err != nil {
-		// Try to find the process by name if PID file doesn't exist
 		findAndKillProcess()
 		return
 	}
 
-	// Parse PID
 	pidStr := strings.TrimSpace(string(pidBytes))
 	pid, err := strconv.Atoi(pidStr)
 	if err != nil {
@@ -377,7 +307,6 @@ func stopServer(pidFilePath string) {
 		return
 	}
 
-	// Send signal to process
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		log.Printf("Failed to find process with PID %d: %v", pid, err)
@@ -385,7 +314,6 @@ func stopServer(pidFilePath string) {
 		return
 	}
 
-	// Send SIGTERM to the process
 	if err := process.Signal(syscall.SIGTERM); err != nil {
 		log.Printf("Failed to send signal to process: %v", err)
 		findAndKillProcess()
@@ -394,45 +322,101 @@ func stopServer(pidFilePath string) {
 
 	log.Printf("Sent termination signal to PorTTY (PID: %d)", pid)
 
-	// Remove PID file
 	os.Remove(pidFilePath)
 }
 
-// findAndKillProcess tries to find and kill the PorTTY process by name
-func findAndKillProcess() {
-	log.Println("Trying to find PorTTY process by name...")
+// ============================================================================
+// MAIN EXECUTION LOGIC
+// ============================================================================
 
-	// Use pgrep to find the process
-	cmd := exec.Command("bash", "-c", "pgrep -f 'portty run'")
-	output, err := cmd.Output()
+func main() {
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.Printf("No PorTTY process found")
+		homeDir = "/tmp"
+	}
+	pidFilePath := filepath.Join(homeDir, PidFileName)
+
+	for _, arg := range os.Args {
+		if arg == "-h" || arg == "--help" {
+			showHelp()
+			return
+		}
+		if arg == "-v" || arg == "--version" {
+			showVersion()
+			return
+		}
+	}
+
+	if len(os.Args) < 2 {
+		showHelp()
 		return
 	}
 
-	// Parse PIDs
-	pids := strings.Split(strings.TrimSpace(string(output)), "\n")
-	for _, pidStr := range pids {
-		if pidStr == "" {
-			continue
+	command := os.Args[1]
+
+	switch command {
+	case "run":
+		address := DefaultAddress
+
+		args := os.Args[2:]
+		for i := 0; i < len(args); i++ {
+			arg := args[i]
+
+			switch arg {
+			case "-h", "--help":
+				showRunHelp()
+				return
+			case "-a", "--address":
+				if i+1 < len(args) {
+					address = args[i+1]
+					i++
+				}
+			case "-p", "--port":
+				if i+1 < len(args) {
+					port := args[i+1]
+					host, _, err := net.SplitHostPort(address)
+					if err != nil {
+						host = "localhost"
+					}
+					if host == "" {
+						host = "localhost"
+					}
+					address = fmt.Sprintf("%s:%s", host, port)
+					i++
+				}
+			default:
+				if !strings.HasPrefix(arg, "-") {
+					address = arg
+				}
+			}
 		}
 
-		pid, err := strconv.Atoi(pidStr)
-		if err != nil {
-			continue
+		runServer(address, pidFilePath)
+	case "stop":
+		if len(os.Args) > 2 && (os.Args[2] == "-h" || os.Args[2] == "--help") {
+			showStopHelp()
+			return
 		}
-
-		// Kill the process
-		process, err := os.FindProcess(pid)
-		if err != nil {
-			continue
+		stopServer(pidFilePath)
+	case "help":
+		if len(os.Args) > 2 {
+			switch os.Args[2] {
+			case "run":
+				showRunHelp()
+			case "stop":
+				showStopHelp()
+			default:
+				fmt.Printf("Unknown command: %s\n\n", os.Args[2])
+				showHelp()
+			}
+		} else {
+			showHelp()
 		}
-
-		if err := process.Signal(syscall.SIGTERM); err != nil {
-			log.Printf("Failed to send signal to process %d: %v", pid, err)
-			continue
-		}
-
-		log.Printf("Sent termination signal to PorTTY (PID: %d)", pid)
+	case "version":
+		showVersion()
+	default:
+		fmt.Printf("Unknown command: %s\n\n", command)
+		showHelp()
+		os.Exit(1)
 	}
 }

@@ -1,33 +1,37 @@
 #!/usr/bin/env bash
 set -e
 
-# Get version from git tag or default to "dev"
+# ============================================================================
+# SCRIPT-LEVEL VARIABLES
+# ============================================================================
+
 VERSION=$(git describe --tags --exact-match 2>/dev/null || echo "dev")
-echo "Building PorTTY version: $VERSION"
 
-# Format Go code
-echo "Formatting Go code..."
-go fmt ./...
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
 
-# Vet Go code
-echo "Vetting Go code..."
-go vet ./...
+format_go_code() {
+    echo "Formatting Go code..."
+    go fmt ./...
+}
 
-# Build the binary
-echo "Building PorTTY binary..."
-go build -ldflags="-s -w" -o portty ./cmd/portty
+vet_go_code() {
+    echo "Vetting Go code..."
+    go vet ./...
+}
 
-echo "Build complete. Run './portty help' for usage information."
+build_binary() {
+    echo "Building PorTTY binary..."
+    go build -ldflags="-s -w" -o portty ./cmd/portty
+}
 
-# Create release archives if this is a tagged version
-if [[ "$VERSION" != "dev" ]]; then
+create_release_archives() {
     echo "Creating release archives for $VERSION..."
     
-    # Determine OS and architecture
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
     ARCH=$(uname -m)
     
-    # Map architecture names
     if [[ "$ARCH" == "x86_64" ]]; then
         ARCH="amd64"
     elif [[ "$ARCH" == "aarch64" ]]; then
@@ -36,18 +40,31 @@ if [[ "$VERSION" != "dev" ]]; then
         ARCH="arm"
     fi
     
-    # Create archive name
     ARCHIVE_NAME="portty-${VERSION}-${OS}-${ARCH}.tar.gz"
     
-    # Create tar.gz archive
     echo "Creating archive: $ARCHIVE_NAME"
     tar -czvf "$ARCHIVE_NAME" portty
     
-    # Create SHA256 checksum
     echo "Creating SHA256 checksum"
     sha256sum "$ARCHIVE_NAME" > "${ARCHIVE_NAME}.sha256"
     
     echo "Release artifacts created:"
     echo "- $ARCHIVE_NAME"
     echo "- ${ARCHIVE_NAME}.sha256"
+}
+
+# ============================================================================
+# MAIN EXECUTION LOGIC
+# ============================================================================
+
+echo "Building PorTTY version: $VERSION"
+
+format_go_code
+vet_go_code
+build_binary
+
+echo "Build complete. Run './portty help' for usage information."
+
+if [[ "$VERSION" != "dev" ]]; then
+    create_release_archives
 fi

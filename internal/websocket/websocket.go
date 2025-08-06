@@ -1,5 +1,9 @@
 package websocket
 
+// ============================================================================
+// IMPORTS
+// ============================================================================
+
 import (
 	"context"
 	"io"
@@ -12,45 +16,41 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// ============================================================================
+// CONSTANTS AND GLOBAL VARIABLES
+// ============================================================================
+
 const (
-	// Time allowed to write a message to the peer
-	writeWait = 10 * time.Second
-
-	// Time allowed to read the next pong message from the peer
-	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period
-	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer
-	maxMessageSize = 16384 // Increased from 8192 to 16KB for better performance
+	writeWait      = 10 * time.Second
+	pongWait       = 60 * time.Second
+	pingPeriod     = (pongWait * 9) / 10
+	maxMessageSize = 16384
 )
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  4096, // Increased from 1024 to 4KB
-	WriteBufferSize: 4096, // Increased from 1024 to 4KB
-	// Allow all origins
-	CheckOrigin: func(r *http.Request) bool { return true },
+	ReadBufferSize:  4096,
+	WriteBufferSize: 4096,
+	CheckOrigin:     func(r *http.Request) bool { return true },
 }
+
+// ============================================================================
+// CORE BUSINESS LOGIC
+// ============================================================================
 
 // HandleWS handles WebSocket connections
 func HandleWS(w http.ResponseWriter, r *http.Request) {
-	// Upgrade the HTTP connection to a WebSocket connection
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("Error upgrading to WebSocket: %v", err)
 		return
 	}
 
-	// Create a wait group to manage goroutines
 	var wg sync.WaitGroup
-	wg.Add(3) // We'll have 3 goroutines
+	wg.Add(3)
 
-	// Create a context to manage goroutine lifecycle
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Create a new PTY bridge
 	ptyBridge, err := ptybridge.New()
 	if err != nil {
 		log.Printf("Error creating PTY bridge: %v", err)
@@ -58,10 +58,8 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create a buffered channel for messages
 	messageChan := make(chan []byte, 100)
 
-	// Set up WebSocket connection
 	conn.SetReadLimit(maxMessageSize)
 	conn.SetReadDeadline(time.Now().Add(pongWait))
 	conn.SetPongHandler(func(string) error {
@@ -69,7 +67,6 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
-	// Start a goroutine to read from the WebSocket
 	go func() {
 		defer wg.Done()
 		defer cancel()
@@ -80,7 +77,6 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 			case <-ctx.Done():
 				return
 			default:
-				// Set a reasonable read deadline to prevent hanging
 				conn.SetReadDeadline(time.Now().Add(pongWait))
 
 				messageType, message, err := conn.ReadMessage()
@@ -91,14 +87,10 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
-				// Process both text and binary messages
 				if messageType == websocket.TextMessage || messageType == websocket.BinaryMessage {
-					// Send message to processing goroutine
 					select {
 					case messageChan <- message:
-						// Message sent successfully
 					default:
-						// Channel is full, log warning and drop message
 						log.Printf("Warning: Message channel full, dropping message")
 					}
 				}
@@ -106,7 +98,6 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Start a goroutine to process messages
 	go func() {
 		defer wg.Done()
 		defer ptyBridge.Close()
@@ -117,13 +108,10 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 				return
 			case message, ok := <-messageChan:
 				if !ok {
-					// Channel closed
 					return
 				}
 
-				// Process the input
 				if err := ptyBridge.ProcessInput(message); err != nil {
-					// Only log serious errors
 					if err == io.EOF || err == io.ErrClosedPipe {
 						log.Printf("Fatal error processing input: %v", err)
 						return
@@ -133,13 +121,11 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Start a goroutine to read from PTY and write to WebSocket
 	go func() {
 		defer wg.Done()
 		defer cancel()
 		defer conn.Close()
 
-		// Buffer for reading from the PTY - increased to 16KB
 		buf := make([]byte, 16384)
 
 		for {
@@ -147,7 +133,6 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 			case <-ctx.Done():
 				return
 			default:
-				// Try to read from the PTY
 				n, err := ptyBridge.Read(buf)
 
 				if err != nil {
@@ -155,49 +140,37 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 
-					// For permanent errors, we'll exit
 					if err == io.ErrClosedPipe || err == io.ErrUnexpectedEOF {
 						return
 					}
 
-					// For other errors, wait a bit before retrying
-					time.Sleep(50 * time.Millisecond) // Reduced from 100ms to 50ms
+					time.Sleep(50 * time.Millisecond)
 					continue
 				}
 
-				// If we read something, send it to the WebSocket
 				if n > 0 {
-					// Set a write deadline and send the data
 					conn.SetWriteDeadline(time.Now().Add(writeWait))
 					if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
-						// Check if it's a fatal error
 						if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 							return
 						}
 
-						// For other errors, wait a bit before continuing
-						time.Sleep(50 * time.Millisecond) // Reduced from 100ms to 50ms
+						time.Sleep(50 * time.Millisecond)
 					}
 				}
 			}
 		}
 	}()
 
-	// Wait for the PTY bridge to be done or context to be cancelled
 	select {
 	case <-ptyBridge.Done():
-		// PTY bridge done
 	case <-ctx.Done():
-		// Context cancelled
 	}
 
-	// Cancel the context to signal all goroutines to stop
 	cancel()
 
-	// Wait for all goroutines to finish
 	wg.Wait()
 
-	// Close the connection and PTY bridge
 	conn.Close()
 	ptyBridge.Close()
 }

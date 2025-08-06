@@ -1,39 +1,30 @@
-#!/bin/bash
-# PorTTY Application Manager
-# Unified script for installation, configuration, and runtime management
+#!/usr/bin/env bash
 set -e
 
-# Determine script name for help messages
+# ============================================================================
+# SCRIPT-LEVEL VARIABLES
+# ============================================================================
+
 if [[ "$0" == *"bash" ]]; then
-  SCRIPT_NAME="portty-installer"
+    SCRIPT_NAME="portty-installer"
 else
-  SCRIPT_NAME=$(basename "$0")
+    SCRIPT_NAME=$(basename "$0")
 fi
 
-# Check if running in an interactive terminal
 if [ -t 0 ]; then
-  IS_INTERACTIVE_TERMINAL=true
+    IS_INTERACTIVE_TERMINAL=true
 else
-  IS_INTERACTIVE_TERMINAL=false
-  # When piped from curl, we should use non-interactive mode
-  INTERACTIVE=false
-  YES_FLAG=true
+    IS_INTERACTIVE_TERMINAL=false
+    INTERACTIVE=false
+    YES_FLAG=true
 fi
 
-# Initialize variables
 SKIP_TMUX_CHECK=false
 
-# Trap signals for graceful shutdown
-trap 'cleanup EXIT' EXIT
-trap 'cleanup SIGINT' SIGINT
-trap 'cleanup SIGTERM' SIGTERM
-
-# Temporary files and background processes
 TMP_FILES=""
 BG_PIDS=""
 PID_FILE="./.portty-install.pid"
 
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -41,7 +32,6 @@ BLUE='\033[0;34m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-# Default configuration
 DEFAULT_PORT="7314"
 DEFAULT_INTERFACE="0.0.0.0"
 INSTALL_DIR="/usr/local/bin"
@@ -51,24 +41,72 @@ LOG_DIR="/var/log/portty"
 INSTALL_LOG="$LOG_DIR/install.log"
 RUNTIME_LOG="$LOG_DIR/portty.log"
 
-# Script state
-MODE="install"  # Default mode
+MODE="install"
 INTERACTIVE=true
 YES_FLAG=false
 FORCE_UPDATE=false
 VERBOSE=false
 
-# Log level constants
 LOG_LEVEL_DEBUG=0
 LOG_LEVEL_INFO=1
 LOG_LEVEL_WARNING=2
 LOG_LEVEL_ERROR=3
 LOG_LEVEL_FATAL=4
 
-# Default log level
-CURRENT_LOG_LEVEL=${PORTTY_LOG_LEVEL:-1}  # Default to INFO
+CURRENT_LOG_LEVEL=${PORTTY_LOG_LEVEL:-1}
 
-# Convert log level string to numeric value
+# ============================================================================
+# SIGNAL HANDLING AND CLEANUP
+# ============================================================================
+
+trap 'cleanup EXIT' EXIT
+trap 'cleanup SIGINT' SIGINT
+trap 'cleanup SIGTERM' SIGTERM
+
+cleanup() {
+    local exit_code=${1:-0}
+    
+    case "$exit_code" in
+        "SIGINT") exit_code=130 ;;
+        "SIGTERM") exit_code=143 ;;
+        "EXIT") exit_code=0 ;;
+    esac
+    
+    if [ -n "$TMP_FILES" ]; then
+        log_debug "Cleaning up temporary files: $TMP_FILES"
+        rm -f $TMP_FILES
+    fi
+    
+    if [ -n "$BG_PIDS" ]; then
+        log_debug "Terminating background processes: $BG_PIDS"
+        for pid in $BG_PIDS; do
+            if kill -0 $pid 2>/dev/null; then
+                log_debug "Killing process $pid"
+                kill $pid 2>/dev/null || true
+            fi
+        done
+    fi
+    
+    if [ -f "$PID_FILE" ]; then
+        log_debug "Removing PID file: $PID_FILE"
+        rm -f "$PID_FILE"
+    fi
+    
+    if [ $exit_code -ne 0 ]; then
+        log_error "Script terminated with errors (exit code: $exit_code)"
+    else
+        log_debug "Cleanup completed successfully"
+    fi
+    
+    if [ "$1" != "EXIT" ]; then
+        exit $exit_code
+    fi
+}
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
 get_log_level() {
     local level_str="$1"
     case "${level_str^^}" in
@@ -81,12 +119,43 @@ get_log_level() {
     esac
 }
 
-# Set current log level from environment variable if provided
+ensure_directories() {
+    mkdir -p "$LOG_DIR"
+    touch "$RUNTIME_LOG" "$INSTALL_LOG"
+    if [ "$VERBOSE" = true ]; then
+        log_info "Log files: $RUNTIME_LOG, $INSTALL_LOG"
+    fi
+}
+
+check_root() {
+    if [ "$EUID" -ne 0 ]; then
+        log_warning "Not running as root. Some operations may fail."
+        log_info "Consider running with sudo for full functionality."
+        return 1
+    fi
+    return 0
+}
+
+check_tmux() {
+    if ! command -v tmux &> /dev/null; then
+        log_error "tmux is not installed."
+        log_info "Please install tmux first:"
+        echo "  - Debian/Ubuntu: sudo apt-get install tmux"
+        echo "  - CentOS/RHEL: sudo yum install tmux"
+        echo "  - macOS: brew install tmux"
+        return 1
+    fi
+    return 0
+}
+
+# ============================================================================
+# LOGGING FUNCTIONS
+# ============================================================================
+
 if [ -n "$PORTTY_LOG_LEVEL" ]; then
     CURRENT_LOG_LEVEL=$(get_log_level "$PORTTY_LOG_LEVEL")
 fi
 
-# Enhanced logging functions with log levels
 log_with_level() {
     local level="$1"
     local level_name="$2"
@@ -94,7 +163,6 @@ log_with_level() {
     local message="$4"
     local log_file="$5"
     
-    # Only log if current level is less than or equal to the message level
     if [ "$CURRENT_LOG_LEVEL" -le "$level" ]; then
         local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
         echo -e "${color}[${timestamp}] [${level_name}]${NC} ${message}" | tee -a "$log_file"
@@ -146,85 +214,10 @@ log_install_error() {
     return 1
 }
 
-# Ensure directories exist
-ensure_directories() {
-    mkdir -p "$LOG_DIR"
-    touch "$RUNTIME_LOG" "$INSTALL_LOG"
-    if [ "$VERBOSE" = true ]; then
-        log_info "Log files: $RUNTIME_LOG, $INSTALL_LOG"
-    fi
-}
+# ============================================================================
+# HELP AND VERSION FUNCTIONS
+# ============================================================================
 
-# Cleanup function for graceful shutdown
-cleanup() {
-    local exit_code=${1:-0}
-    
-    # Convert signal name to exit code if needed
-    case "$exit_code" in
-        "SIGINT") exit_code=130 ;;
-        "SIGTERM") exit_code=143 ;;
-        "EXIT") exit_code=0 ;;
-    esac
-    
-    # Clean up temporary files
-    if [ -n "$TMP_FILES" ]; then
-        log_debug "Cleaning up temporary files: $TMP_FILES"
-        rm -f $TMP_FILES
-    fi
-    
-    # Kill background processes
-    if [ -n "$BG_PIDS" ]; then
-        log_debug "Terminating background processes: $BG_PIDS"
-        for pid in $BG_PIDS; do
-            if kill -0 $pid 2>/dev/null; then
-                log_debug "Killing process $pid"
-                kill $pid 2>/dev/null || true
-            fi
-        done
-    fi
-    
-    # Remove PID file if it exists
-    if [ -f "$PID_FILE" ]; then
-        log_debug "Removing PID file: $PID_FILE"
-        rm -f "$PID_FILE"
-    fi
-    
-    if [ $exit_code -ne 0 ]; then
-        log_error "Script terminated with errors (exit code: $exit_code)"
-    else
-        log_debug "Cleanup completed successfully"
-    fi
-    
-    # Only exit if this is a direct call, not from the EXIT trap
-    if [ "$1" != "EXIT" ]; then
-        exit $exit_code
-    fi
-}
-
-# Check if running as root
-check_root() {
-    if [ "$EUID" -ne 0 ]; then
-        log_warning "Not running as root. Some operations may fail."
-        log_info "Consider running with sudo for full functionality."
-        return 1
-    fi
-    return 0
-}
-
-# Check if tmux is installed
-check_tmux() {
-    if ! command -v tmux &> /dev/null; then
-        log_error "tmux is not installed."
-        log_info "Please install tmux first:"
-        echo "  - Debian/Ubuntu: sudo apt-get install tmux"
-        echo "  - CentOS/RHEL: sudo yum install tmux"
-        echo "  - macOS: brew install tmux"
-        return 1
-    fi
-    return 0
-}
-
-# Function to display help
 show_help() {
     echo -e "${BOLD}PorTTY Application Manager${NC}"
     echo "Unified script for installation, configuration, and runtime management"
@@ -280,7 +273,6 @@ show_help() {
     exit 0
 }
 
-# Function to display version
 show_version() {
     echo "PorTTY Application Manager v0.1"
     echo "PorTTY: A lightweight, web-based terminal emulator powered by tmux"
@@ -288,7 +280,10 @@ show_version() {
     exit 0
 }
 
-# Download PorTTY binary
+# ============================================================================
+# INSTALLATION FUNCTIONS
+# ============================================================================
+
 download_binary() {
     local version="v0.1"
     local url="https://github.com/PiTZE/PorTTY/releases/download/${version}/portty"
@@ -300,10 +295,8 @@ download_binary() {
         return 0
     fi
     
-    # Create installation directory if it doesn't exist
     mkdir -p "$INSTALL_DIR"
     
-    # Download with retry logic
     local max_attempts=3
     local attempt=1
     
@@ -327,7 +320,6 @@ download_binary() {
     return 1
 }
 
-# Create systemd service file
 create_service_file() {
     local interface="$1"
     local port="$2"
@@ -359,34 +351,26 @@ EOF
     fi
 }
 
-# Install PorTTY
 install_portty() {
     local interface="${1:-$DEFAULT_INTERFACE}"
     local port="${2:-$DEFAULT_PORT}"
     
     log_install_step "Starting PorTTY installation..."
     
-    # Check prerequisites
     if [ "$SKIP_TMUX_CHECK" != "true" ]; then
         check_tmux || return 1
     fi
     
-    # Download binary
     download_binary || return 1
     
-    # Check if systemd is available
     if command -v systemctl &> /dev/null; then
-        # Create service file
         create_service_file "$interface" "$port" || return 1
         
-        # Reload systemd and enable service
         systemctl daemon-reload
         systemctl enable portty.service
         
-        # Start the service
         systemctl start portty.service
         
-        # Check if service started successfully
         if systemctl is-active --quiet portty.service; then
             log_install "PorTTY service is running! ✓"
             log_install "Installation completed successfully ✓"
@@ -397,7 +381,6 @@ install_portty() {
             return 1
         fi
     else
-        # Systemd not available, just report success for the binary installation
         log_install "Systemd not detected. Service installation skipped."
         log_install "PorTTY binary installed at: $BINARY_FILE"
         log_install "To start PorTTY manually, run: $BINARY_FILE run $interface:$port"
@@ -406,11 +389,9 @@ install_portty() {
     fi
 }
 
-# Uninstall PorTTY
 uninstall_portty() {
     log_step "Uninstalling PorTTY..."
     
-    # Stop and disable service if it exists
     if [ -f "$SERVICE_FILE" ]; then
         log_info "Stopping and removing PorTTY service..."
         if command -v systemctl &> /dev/null; then
@@ -424,7 +405,6 @@ uninstall_portty() {
         log_info "No PorTTY service found."
     fi
     
-    # Remove binary
     if [ -f "$BINARY_FILE" ]; then
         log_info "Removing PorTTY binary..."
         rm -f "$BINARY_FILE"
@@ -433,7 +413,6 @@ uninstall_portty() {
         log_info "No PorTTY binary found at $BINARY_FILE."
     fi
     
-    # Remove logs
     if [ -d "$LOG_DIR" ]; then
         if [ "$YES_FLAG" = true ]; then
             log_info "Removing log files..."
@@ -453,33 +432,26 @@ uninstall_portty() {
     return 0
 }
 
-# Update PorTTY
 update_portty() {
     log_step "Updating PorTTY..."
     
-    # Check if PorTTY is installed
     if [ ! -f "$BINARY_FILE" ]; then
         log_error "PorTTY is not installed. Use 'install' command first."
         return 1
     fi
     
-    # Check if systemd is available
     if command -v systemctl &> /dev/null; then
-        # Stop the service
         systemctl stop portty.service 2>/dev/null || true
         
-        # Get current configuration
         local current_config=""
         if [ -f "$SERVICE_FILE" ]; then
             current_config=$(grep "ExecStart=" "$SERVICE_FILE" | sed 's/ExecStart=.*portty run //')
         fi
     fi
     
-    # Download new binary
     FORCE_UPDATE=true
     download_binary || return 1
     
-    # Restart service if systemd is available
     if command -v systemctl &> /dev/null; then
         systemctl start portty.service
         
@@ -497,7 +469,10 @@ update_portty() {
     fi
 }
 
-# Check PorTTY status
+# ============================================================================
+# STATUS AND SERVICE MANAGEMENT FUNCTIONS
+# ============================================================================
+
 check_status() {
     log_step "Checking PorTTY status..."
     
@@ -509,7 +484,6 @@ check_status() {
     
     echo -e "${BOLD}PorTTY Status:${NC}"
     
-    # Check binary
     if [ -f "$BINARY_FILE" ]; then
         echo "  Binary: ✓ Installed at $BINARY_FILE"
         local binary_version=$("$BINARY_FILE" --version 2>/dev/null | head -1)
@@ -520,7 +494,6 @@ check_status() {
         echo "  Binary: ✗ Not found"
     fi
     
-    # Check service
     if [ -f "$SERVICE_FILE" ]; then
         echo "  Service: ✓ Installed"
         
@@ -535,7 +508,6 @@ check_status() {
             local pid=$(systemctl show --property MainPID --value portty.service)
             echo "  PID: $pid"
             
-            # Show listening port
             local port_info=$(ss -tulpn | grep ":$DEFAULT_PORT" | head -1)
             if [ -n "$port_info" ]; then
                 echo "  Listening: $port_info"
@@ -547,7 +519,6 @@ check_status() {
         echo "  Service: ✗ Not installed"
     fi
     
-    # Check tmux
     if command -v tmux &> /dev/null; then
         echo "  tmux: ✓ Installed"
     else
@@ -557,7 +528,6 @@ check_status() {
     return 0
 }
 
-# Service management functions
 start_service() {
     log_step "Starting PorTTY service..."
     
@@ -699,17 +669,17 @@ show_config() {
     echo "Log Directory: $LOG_DIR"
 }
 
-# Interactive menu functions
+# ============================================================================
+# INTERACTIVE MENU FUNCTIONS
+# ============================================================================
+
 show_main_menu() {
-    # If not running in an interactive terminal, use non-interactive mode
     if [ "$IS_INTERACTIVE_TERMINAL" = false ]; then
         log_info "Running in non-interactive mode. Using default installation."
         
-        # Check for tmux but make it optional in non-interactive mode
         if ! command -v tmux &> /dev/null; then
             log_warning "tmux is not installed. Continuing with installation anyway."
             log_info "Note: tmux is recommended for optimal terminal experience."
-            # Set a flag to skip tmux check in install_portty
             SKIP_TMUX_CHECK=true
         fi
         
@@ -906,7 +876,10 @@ logs_config_menu() {
     done
 }
 
-# Parse command line arguments
+# ============================================================================
+# ARGUMENT PARSING FUNCTIONS
+# ============================================================================
+
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -987,26 +960,23 @@ parse_arguments() {
     done
 }
 
-# Main script logic
+# ============================================================================
+# MAIN EXECUTION LOGIC
+# ============================================================================
+
 main() {
-    # Parse arguments first to handle --help and --version without side effects
     parse_arguments "$@"
     
-    # Save the script PID for cleanup
     echo $$ > "$PID_FILE"
     
-    # Ensure directories exist only after we know we're not just showing help/version
     ensure_directories
     
-    # If no command specified, default to interactive mode
     if [ "$MODE" = "install" ] && [ $# -eq 0 ]; then
-        # Only set interactive mode if we're in an interactive terminal
         if [ "$IS_INTERACTIVE_TERMINAL" = true ]; then
             INTERACTIVE=true
         fi
     fi
     
-    # Execute based on mode
     case "$MODE" in
         install)
             if [ "$INTERACTIVE" = true ]; then
@@ -1095,11 +1065,9 @@ main() {
             show_config
             ;;
         *)
-            # Interactive mode
             show_main_menu
             ;;
     esac
 }
 
-# Run main function with all arguments
 main "$@"
