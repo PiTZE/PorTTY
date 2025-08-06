@@ -16,12 +16,10 @@ function isRunningOnLocalhost() {
 }
 
 function isMobileDevice() {
-    // Check for mobile devices using multiple detection methods
     const userAgent = navigator.userAgent.toLowerCase();
     const mobileKeywords = ['mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone'];
     const hasMobileKeyword = mobileKeywords.some(keyword => userAgent.includes(keyword));
     
-    // Check for touch capability and screen size
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     const isSmallScreen = window.innerWidth <= 768 || window.innerHeight <= 768;
     
@@ -316,12 +314,10 @@ function initializePorTTY() {
         fastScrollModifier: 'alt',
         disableStdin: false,
         screenReaderMode: false,
-        rendererType: isMobileDevice() ? 'canvas' : 'webgl', // Smart renderer selection
-        allowProposedApi: true // Required for newer addons like Clipboard
-        // No cols/rows specified - let FitAddon handle all sizing
+        rendererType: isMobileDevice() ? 'canvas' : 'webgl',
+        allowProposedApi: true
     });
     
-    // Load addons BEFORE opening terminal
     const fitAddon = new window.FitAddon.FitAddon();
     const webglAddon = new window.WebglAddon.WebglAddon();
     const searchAddon = new window.SearchAddon.SearchAddon();
@@ -335,13 +331,9 @@ function initializePorTTY() {
     term.loadAddon(webLinksAddon);
     term.loadAddon(clipboardAddon);
     
-    // Open terminal first
     term.open(terminalContainer);
-    
-    // Load WebGL addon only for desktop devices
     if (!isMobileDevice()) {
         try {
-            // Handle WebGL context loss as per best practices
             webglAddon.onContextLoss(e => {
                 webglAddon.dispose();
             });
@@ -352,22 +344,18 @@ function initializePorTTY() {
         }
     }
     
-    // Initialize addon managers
     const fontSizeManager = new FontSizeManager(term);
     const searchManager = new SearchManager(term, searchAddon);
     
-    // Wait for container to be properly sized, then fit
     const performInitialFit = () => {
         const container = document.getElementById('terminal-container');
         if (container && container.offsetWidth > 0 && container.offsetHeight > 0) {
             try {
                 fitAddon.fit();
                 term.focus();
-                // Send initial resize to ensure backend knows the correct size
                 sendResize(term);
             } catch (error) {
                 console.error('[PorTTY] Error during initial fit:', error);
-                // Retry once more after a short delay
                 setTimeout(() => {
                     try {
                         fitAddon.fit();
@@ -378,17 +366,14 @@ function initializePorTTY() {
                 }, 100);
             }
         } else {
-            // If container not ready, try again
             setTimeout(performInitialFit, 10);
         }
     };
     
-    // Use multiple timing strategies to ensure proper initialization
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             performInitialFit();
             
-            // Additional fallback after a short delay
             setTimeout(() => {
                 const container = document.getElementById('terminal-container');
                 if (container && container.offsetWidth > 0 && container.offsetHeight > 0) {
@@ -404,7 +389,6 @@ function initializePorTTY() {
     
     const connectionManager = new ConnectionStatusManager();
     
-    // Global references for reactive resize and debugging
     window.porttySocket = null;
     window.porttyTerminal = term;
     window.porttyFitAddon = fitAddon;
@@ -422,8 +406,6 @@ function initializePorTTY() {
 // EVENT LISTENERS AND HANDLERS
 // ============================================================================
 
-// PWA installation is handled in index.html to avoid conflicts
-
 function setupWebSocketConnection(term, fitAddon, connectionManager, socket, reconnectAttempts) {
     function connectWebSocket() {
         connectionManager.updateStatus('connecting');
@@ -432,7 +414,7 @@ function setupWebSocketConnection(term, fitAddon, connectionManager, socket, rec
         const wsUrl = `${protocol}//${window.location.host}/ws`;
         
         socket = new WebSocket(wsUrl);
-        window.porttySocket = socket; // Update global reference
+        window.porttySocket = socket;
         const attachAddon = new window.AttachAddon.AttachAddon(socket);
         term.loadAddon(attachAddon);
         
@@ -440,7 +422,6 @@ function setupWebSocketConnection(term, fitAddon, connectionManager, socket, rec
             connectionManager.updateStatus('connected');
             reconnectAttempts = 0;
             
-            // Send initial size (terminal already fitted during initialization)
             sendResize(term);
         });
         
@@ -499,7 +480,6 @@ function sendResize(term) {
 function setupReactiveResize(term, fitAddon) {
     let lastDimensions = { width: 0, height: 0 };
     
-    // High-performance resize function - no debouncing needed
     const performResize = () => {
         const container = document.getElementById('terminal-container');
         if (!container) {
@@ -508,12 +488,10 @@ function setupReactiveResize(term, fitAddon) {
         
         const containerRect = container.getBoundingClientRect();
         
-        // Skip resize if container has no dimensions (hidden, etc.)
         if (containerRect.width <= 0 || containerRect.height <= 0) {
             return;
         }
         
-        // Skip resize if dimensions haven't actually changed (5px threshold)
         if (Math.abs(containerRect.width - lastDimensions.width) < 5 &&
             Math.abs(containerRect.height - lastDimensions.height) < 5) {
             return;
@@ -529,17 +507,13 @@ function setupReactiveResize(term, fitAddon) {
         }
     };
     
-    // Only use window resize for maximum performance
     window.addEventListener('resize', performResize);
-    
-    // Cleanup event listener
     window.addEventListener('beforeunload', () => {
         if (window.porttySocket && window.porttySocket.readyState === WebSocket.OPEN) {
             window.porttySocket.close(1000, 'Page unloaded');
         }
     });
     
-    // Manual resize trigger for debugging
     window.porttyManualResize = performResize;
 }
 
@@ -577,9 +551,7 @@ Terminal: ${term.cols}x${term.rows}`);
 }
 
 function setupKeyboardShortcuts(fontSizeManager, searchManager, term) {
-    // Add event listener to both document and terminal element for better capture
     const handleKeydown = (e) => {
-        // Font size controls
         if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
             e.preventDefault();
             e.stopPropagation();
@@ -601,7 +573,6 @@ function setupKeyboardShortcuts(fontSizeManager, searchManager, term) {
             return;
         }
         
-        // Search functionality - try both 'f' and 'F'
         if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
             e.preventDefault();
             e.stopPropagation();
@@ -609,17 +580,14 @@ function setupKeyboardShortcuts(fontSizeManager, searchManager, term) {
             return;
         }
         
-        // Reconnection shortcut
         if ((e.ctrlKey && e.key === 'r') || e.key === 'F5') {
             if (window.porttySocket && window.porttySocket.readyState !== WebSocket.OPEN) {
                 e.preventDefault();
-                // Trigger reconnection logic would go here
             }
         }
     };
     
-    // Add to both document and terminal for better event capture
-    document.addEventListener('keydown', handleKeydown, true); // Use capture phase
+    document.addEventListener('keydown', handleKeydown, true);
     term.element.addEventListener('keydown', handleKeydown, true);
 }
 

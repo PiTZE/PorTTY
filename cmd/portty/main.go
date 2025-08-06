@@ -33,14 +33,12 @@ import (
 //go:embed assets
 var webContent embed.FS
 
-// Configuration instance
 var cfg = config.Default
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
-// ServerManager implements the ServerManager interface
 type ServerManager struct {
 	addressParser  interfaces.AddressParser
 	processManager interfaces.ProcessManager
@@ -50,22 +48,15 @@ type ServerManager struct {
 	wsHandler      interfaces.WebSocketHandler
 }
 
-// AddressParser implements the AddressParser interface
 type AddressParser struct{}
 
-// ProcessManager implements the ProcessManager interface
 type ProcessManager struct{}
 
-// PIDFileManager implements the PIDFileManager interface
 type PIDFileManager struct{}
 
-// TmuxSessionManager implements the TmuxSessionManager interface
 type TmuxSessionManager struct{}
 
-// HTTPServerManager implements the HTTPServerManager interface
 type HTTPServerManager struct{}
-
-// HTTPServerWrapper wraps the standard http.Server to implement HTTPServer interface
 type HTTPServerWrapper struct {
 	server *http.Server
 }
@@ -74,12 +65,9 @@ type HTTPServerWrapper struct {
 // INTERFACE IMPLEMENTATIONS
 // ============================================================================
 
-// AddressParser implementations
 func (ap *AddressParser) ParseAddress(address string) (string, int, error) {
 	return parseAddress(address)
 }
-
-// ProcessManager implementations
 func (pm *ProcessManager) CheckTmuxInstalled() bool {
 	return checkTmuxInstalled()
 }
@@ -98,7 +86,6 @@ func (pm *ProcessManager) StopServer(pidFilePath string) error {
 	return nil
 }
 
-// PIDFileManager implementations
 func (pfm *PIDFileManager) WritePIDFile(pidFilePath string, pid int) error {
 	return os.WriteFile(pidFilePath, []byte(strconv.Itoa(pid)), cfg.Server.PidFilePermissions)
 }
@@ -116,13 +103,11 @@ func (pfm *PIDFileManager) RemovePIDFile(pidFilePath string) error {
 	return os.Remove(pidFilePath)
 }
 
-// TmuxSessionManager implementations
 func (tsm *TmuxSessionManager) CleanupTmuxSessions(ctx context.Context) error {
 	cleanupTmuxSessions(ctx)
 	return nil
 }
 
-// HTTPServerManager implementations
 func (hsm *HTTPServerManager) CreateServer(address string, handler http.Handler) interfaces.HTTPServer {
 	server := &http.Server{
 		Addr:    address,
@@ -131,7 +116,6 @@ func (hsm *HTTPServerManager) CreateServer(address string, handler http.Handler)
 	return &HTTPServerWrapper{server: server}
 }
 
-// HTTPServerWrapper implementations
 func (hsw *HTTPServerWrapper) ListenAndServe() error {
 	return hsw.server.ListenAndServe()
 }
@@ -140,9 +124,7 @@ func (hsw *HTTPServerWrapper) Shutdown(ctx context.Context) error {
 	return hsw.server.Shutdown(ctx)
 }
 
-// ServerManager implementations
 func (sm *ServerManager) Start(ctx context.Context, address string) error {
-	// Only check tmux installation if tmux mode is enabled
 	if cfg.Server.UseTmux {
 		if !sm.processManager.CheckTmuxInstalled() {
 			return fmt.Errorf("tmux is not installed. Please install tmux to use PorTTY with --tmux flag")
@@ -158,7 +140,6 @@ func (sm *ServerManager) Start(ctx context.Context, address string) error {
 		return fmt.Errorf("failed to parse server address: %w", err)
 	}
 
-	// Get PID file path
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		homeDir = cfg.Server.FallbackTempDir
@@ -170,13 +151,11 @@ func (sm *ServerManager) Start(ctx context.Context, address string) error {
 		logger.ServerLogger.Warn("failed to write PID file", logger.String("path", pidFilePath), logger.Error(err))
 	}
 
-	// Create application-level context for coordinated shutdown
 	appCtx, appCancel := context.WithCancel(ctx)
 	defer appCancel()
 
 	mux := http.NewServeMux()
 
-	// Pass application context to WebSocket handler
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		sm.wsHandler.HandleWS(appCtx, w, r)
 	})
@@ -192,7 +171,6 @@ func (sm *ServerManager) Start(ctx context.Context, address string) error {
 	bindAddr := fmt.Sprintf("%s:%d", host, port)
 	server := sm.httpManager.CreateServer(bindAddr, mux)
 
-	// Start HTTP server in goroutine
 	serverErrChan := make(chan error, 1)
 	go func() {
 		logger.ServerLogger.Info("Starting PorTTY", logger.String("url", "http://"+bindAddr))
@@ -201,11 +179,9 @@ func (sm *ServerManager) Start(ctx context.Context, address string) error {
 		}
 	}()
 
-	// Setup signal handling for graceful shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
-	// Wait for shutdown signal or server error
 	select {
 	case <-stop:
 		logger.ServerLogger.Info("Received shutdown signal")
@@ -215,28 +191,22 @@ func (sm *ServerManager) Start(ctx context.Context, address string) error {
 		logger.ServerLogger.Info("Application context cancelled")
 	}
 
-	// Begin coordinated shutdown sequence
 	logger.ServerLogger.Info("Beginning graceful shutdown")
 
-	// Cancel application context to signal all components to shutdown
 	appCancel()
 
-	// Create shutdown context with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 	defer shutdownCancel()
 
-	// Shutdown HTTP server
 	logger.ServerLogger.Info("Shutting down HTTP server")
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.ServerLogger.Error("failed to gracefully shutdown HTTP server", err)
 	}
 
-	// Clean up PID file
 	if err := sm.pidFileManager.RemovePIDFile(pidFilePath); err != nil && !os.IsNotExist(err) {
 		logger.ServerLogger.Warn("failed to remove PID file", logger.String("path", pidFilePath), logger.Error(err))
 	}
 
-	// Clean up tmux sessions only if tmux mode is enabled
 	if cfg.Server.UseTmux {
 		logger.ServerLogger.Info("Cleaning up tmux sessions")
 		if err := sm.tmuxManager.CleanupTmuxSessions(shutdownCtx); err != nil {
@@ -284,7 +254,6 @@ func NewServerManager() interfaces.ServerManager {
 // INTERFACE COMPLIANCE CHECKS
 // ============================================================================
 
-// Compile-time interface compliance checks
 var (
 	_ interfaces.ServerManager      = (*ServerManager)(nil)
 	_ interfaces.AddressParser      = (*AddressParser)(nil)
@@ -299,7 +268,6 @@ var (
 // UTILITY FUNCTIONS
 // ============================================================================
 
-// parseAddress parses the address and returns host and port
 func parseAddress(address string) (string, int, error) {
 	host, portStr, err := net.SplitHostPort(address)
 	if err != nil {
@@ -318,20 +286,17 @@ func parseAddress(address string) (string, int, error) {
 	return host, port, nil
 }
 
-// checkTmuxInstalled checks if tmux is installed
 func checkTmuxInstalled() bool {
 	_, err := exec.LookPath("tmux")
 	return err == nil
 }
 
-// checkSessionExists checks if a tmux session exists
 func checkSessionExists(sessionName string) bool {
 	cmd := exec.Command("tmux", "has-session", "-t", sessionName)
 	err := cmd.Run()
 	return err == nil
 }
 
-// findAndKillProcess tries to find and kill the PorTTY process by name
 func findAndKillProcess() {
 	logger.ServerLogger.Info("Trying to find PorTTY process by name")
 
@@ -371,7 +336,6 @@ func findAndKillProcess() {
 // HELP AND VERSION FUNCTIONS
 // ============================================================================
 
-// showRunHelp displays help for the run command
 func showRunHelp() {
 	programName := filepath.Base(os.Args[0])
 
@@ -405,7 +369,6 @@ func showRunHelp() {
 	fmt.Printf("  %s run --address localhost --port 7314 --tmux  # Start with tmux on localhost, port 7314\n", programName)
 }
 
-// showStopHelp displays help for the stop command
 func showStopHelp() {
 	programName := filepath.Base(os.Args[0])
 
@@ -423,14 +386,12 @@ func showStopHelp() {
 	fmt.Println("  it attempts to find the process by name.")
 }
 
-// showVersion displays version information
 func showVersion() {
 	fmt.Printf("PorTTY %s\n", cfg.Server.Version)
 	fmt.Println("A lightweight, web-based terminal emulator powered by tmux")
 	fmt.Println("https://github.com/PiTZE/PorTTY")
 }
 
-// showHelp displays usage information
 func showHelp() {
 	programName := filepath.Base(os.Args[0])
 	version := cfg.Server.Version
@@ -476,25 +437,17 @@ func showHelp() {
 // CORE BUSINESS LOGIC
 // ============================================================================
 
-// runServer starts the PorTTY server using the new interface-based architecture
 func runServer(address string) {
-	// Create server manager with dependency injection
 	serverManager := NewServerManager()
-
-	// Start the server using the interface-based approach
 	ctx := context.Background()
 	if err := serverManager.Start(ctx, address); err != nil {
 		logger.ServerLogger.Fatal("failed to start server", err, logger.String("address", address))
 	}
 }
 
-// cleanupTmuxSessions performs context-aware cleanup of tmux sessions
 func cleanupTmuxSessions(ctx context.Context) {
-	// Create timeout context for tmux cleanup operations
 	cleanupCtx, cleanupCancel := context.WithTimeout(ctx, cfg.Server.TmuxCleanupTimeout)
 	defer cleanupCancel()
-
-	// Check if main session exists before attempting to kill it
 	checkCmd := exec.CommandContext(cleanupCtx, "tmux", "has-session", "-t", cfg.Server.SessionName)
 	if err := checkCmd.Run(); err != nil {
 		if err == context.DeadlineExceeded {
@@ -503,7 +456,6 @@ func cleanupTmuxSessions(ctx context.Context) {
 			logger.ServerLogger.Info("tmux session does not exist, skipping cleanup", logger.String("session", cfg.Server.SessionName))
 		}
 	} else {
-		// Session exists, kill it
 		killCmd := exec.CommandContext(cleanupCtx, "tmux", "kill-session", "-t", cfg.Server.SessionName)
 		if err := killCmd.Run(); err != nil {
 			if err == context.DeadlineExceeded {
@@ -516,7 +468,6 @@ func cleanupTmuxSessions(ctx context.Context) {
 		}
 	}
 
-	// Clean up any orphaned PorTTY sessions
 	cleanupCmd := exec.CommandContext(cleanupCtx, "bash", "-c", "tmux list-sessions -F '#{session_name}' 2>/dev/null | grep '^PorTTY-' | xargs -I{} tmux kill-session -t {} 2>/dev/null || true")
 	if err := cleanupCmd.Run(); err != nil {
 		if err == context.DeadlineExceeded {
@@ -527,7 +478,6 @@ func cleanupTmuxSessions(ctx context.Context) {
 	}
 }
 
-// stopServer stops the PorTTY server
 func stopServer(pidFilePath string) {
 	pidBytes, err := os.ReadFile(pidFilePath)
 	if err != nil {

@@ -24,7 +24,6 @@ import (
 // CONSTANTS AND GLOBAL VARIABLES
 // ============================================================================
 
-// Configuration instance
 var cfg = config.Default
 
 var sessionMutex sync.Mutex
@@ -33,7 +32,6 @@ var sessionMutex sync.Mutex
 // TYPE DEFINITIONS
 // ============================================================================
 
-// PTYBridge manages the connection between a PTY and a client
 type PTYBridge struct {
 	cmd         *exec.Cmd
 	pty         *os.File
@@ -43,13 +41,11 @@ type PTYBridge struct {
 	cancel      context.CancelFunc
 }
 
-// ResizeMessage represents a terminal resize request
 type ResizeMessage struct {
 	Type       string     `json:"type"`
 	Dimensions Dimensions `json:"dimensions"`
 }
 
-// Dimensions represents terminal dimensions
 type Dimensions struct {
 	Cols int `json:"cols"`
 	Rows int `json:"rows"`
@@ -59,7 +55,6 @@ type Dimensions struct {
 // UTILITY FUNCTIONS
 // ============================================================================
 
-// checkSessionExists checks if a tmux session exists
 func checkSessionExists(sessionName string) bool {
 	cmd := exec.Command("tmux", "has-session", "-t", sessionName)
 	err := cmd.Run()
@@ -70,12 +65,10 @@ func checkSessionExists(sessionName string) bool {
 // CORE BUSINESS LOGIC
 // ============================================================================
 
-// New creates a new PTY bridge or connects to an existing one with context support
 func New(parentCtx context.Context) (*PTYBridge, error) {
 	sessionMutex.Lock()
 	defer sessionMutex.Unlock()
 
-	// Create context for this PTY bridge
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	var cmd *exec.Cmd
@@ -84,7 +77,6 @@ func New(parentCtx context.Context) (*PTYBridge, error) {
 	var sessionName string
 
 	if cfg.Server.UseTmux {
-		// Tmux mode - existing behavior
 		sessionExists := checkSessionExists(cfg.Server.SessionName)
 		sessionName = cfg.Server.SessionName
 
@@ -94,14 +86,12 @@ func New(parentCtx context.Context) (*PTYBridge, error) {
 		} else {
 			logger.PTYBridgeLogger.Info("Creating new tmux session", logger.String("session", cfg.Server.SessionName))
 
-			// Kill any existing session with context
 			killCmd := exec.CommandContext(ctx, "tmux", "kill-session", "-t", cfg.Server.SessionName)
 			killCmd.Run()
 
 			cmd = exec.CommandContext(ctx, "tmux", "new-session", "-s", cfg.Server.SessionName)
 		}
 	} else {
-		// Direct shell mode - use user's default shell
 		logger.PTYBridgeLogger.Info("Starting direct shell session", logger.String("shell", cfg.Terminal.DefaultShell))
 		cmd = exec.CommandContext(ctx, cfg.Terminal.DefaultShell)
 		sessionName = "DirectShell"
@@ -143,22 +133,18 @@ func New(parentCtx context.Context) (*PTYBridge, error) {
 		cancel:      cancel,
 	}
 
-	// Start monitoring context cancellation
 	go bridge.monitorContext()
 
 	return bridge, nil
 }
 
-// monitorContext monitors the context and handles cancellation
 func (p *PTYBridge) monitorContext() {
 	<-p.ctx.Done()
 	logger.PTYBridgeLogger.Info("PTY bridge context cancelled, initiating shutdown")
 	p.Close()
 }
 
-// Read reads data from the PTY with context awareness
 func (p *PTYBridge) Read(ctx context.Context, b []byte) (int, error) {
-	// Check if context is cancelled before reading
 	select {
 	case <-ctx.Done():
 		return 0, ctx.Err()
@@ -167,7 +153,6 @@ func (p *PTYBridge) Read(ctx context.Context, b []byte) (int, error) {
 	default:
 	}
 
-	// Use a channel to make the read operation cancellable
 	type readResult struct {
 		n   int
 		err error
@@ -189,9 +174,7 @@ func (p *PTYBridge) Read(ctx context.Context, b []byte) (int, error) {
 	}
 }
 
-// Write writes data to the PTY with context awareness
 func (p *PTYBridge) Write(ctx context.Context, b []byte) (int, error) {
-	// Check if context is cancelled before writing
 	select {
 	case <-ctx.Done():
 		return 0, ctx.Err()
@@ -200,7 +183,6 @@ func (p *PTYBridge) Write(ctx context.Context, b []byte) (int, error) {
 	default:
 	}
 
-	// Use a channel to make the write operation cancellable
 	type writeResult struct {
 		n   int
 		err error
@@ -222,9 +204,7 @@ func (p *PTYBridge) Write(ctx context.Context, b []byte) (int, error) {
 	}
 }
 
-// ProcessInput processes input messages from WebSocket clients with context awareness
 func (p *PTYBridge) ProcessInput(ctx context.Context, data []byte) error {
-	// Check if context is cancelled before processing
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -255,7 +235,6 @@ func (p *PTYBridge) ProcessInput(ctx context.Context, data []byte) error {
 	return err
 }
 
-// Resize changes the terminal dimensions to the specified rows and columns
 func (p *PTYBridge) Resize(rows, cols int) error {
 	return pty.Setsize(p.pty, &pty.Winsize{
 		Rows: uint16(rows),
@@ -263,7 +242,6 @@ func (p *PTYBridge) Resize(rows, cols int) error {
 	})
 }
 
-// Close closes the PTY connection while preserving the tmux session for reconnection
 func (p *PTYBridge) Close() error {
 	select {
 	case <-p.done:
@@ -278,12 +256,10 @@ func (p *PTYBridge) Close() error {
 		logger.PTYBridgeLogger.Info("Client disconnected from direct shell", logger.String("session", p.sessionName))
 	}
 
-	// Cancel the context to signal shutdown
 	if p.cancel != nil {
 		p.cancel()
 	}
 
-	// Close PTY with timeout
 	done := make(chan error, 1)
 	go func() {
 		done <- p.pty.Close()
@@ -298,12 +274,10 @@ func (p *PTYBridge) Close() error {
 	}
 }
 
-// Done returns a channel that signals when the PTY bridge is closed
 func (p *PTYBridge) Done() <-chan struct{} {
 	return p.done
 }
 
-// Copy continuously copies data from the PTY to the specified writer
 func (p *PTYBridge) Copy(dst io.Writer) {
 	io.Copy(dst, p.pty)
 }
@@ -312,7 +286,6 @@ func (p *PTYBridge) Copy(dst io.Writer) {
 // INTERFACE COMPLIANCE CHECKS
 // ============================================================================
 
-// Compile-time interface compliance checks
 var (
 	_ interfaces.PTYReader         = (*PTYBridge)(nil)
 	_ interfaces.PTYWriter         = (*PTYBridge)(nil)
@@ -328,20 +301,16 @@ var (
 // FACTORY FUNCTIONS
 // ============================================================================
 
-// Factory implements the PTYBridgeFactory interface
 type Factory struct{}
 
-// NewFactory creates a new PTY bridge factory
 func NewFactory() interfaces.PTYBridgeFactory {
 	return &Factory{}
 }
 
-// NewPTYBridge creates a new PTY bridge instance
 func (f *Factory) NewPTYBridge(ctx context.Context) (interfaces.PTYBridge, error) {
 	return New(ctx)
 }
 
-// NewPTYBridge is a convenience function that creates a PTY bridge directly
 func NewPTYBridge(ctx context.Context) (interfaces.PTYBridge, error) {
 	return New(ctx)
 }

@@ -22,14 +22,12 @@ import (
 // CONSTANTS AND GLOBAL VARIABLES
 // ============================================================================
 
-// Configuration instance
 var cfg = config.Default
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
-// Handler implements the WebSocketHandler interface
 type Handler struct {
 	ptyFactory interfaces.PTYBridgeFactory
 	upgrader   *websocket.Upgrader
@@ -39,7 +37,6 @@ type Handler struct {
 // CORE BUSINESS LOGIC
 // ============================================================================
 
-// NewHandler creates a new WebSocket handler with dependency injection
 func NewHandler(ptyFactory interfaces.PTYBridgeFactory) interfaces.WebSocketHandler {
 	return &Handler{
 		ptyFactory: ptyFactory,
@@ -51,7 +48,6 @@ func NewHandler(ptyFactory interfaces.PTYBridgeFactory) interfaces.WebSocketHand
 	}
 }
 
-// HandleWS handles WebSocket connections with application context coordination
 func (h *Handler) HandleWS(appCtx context.Context, w http.ResponseWriter, r *http.Request) {
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -62,7 +58,6 @@ func (h *Handler) HandleWS(appCtx context.Context, w http.ResponseWriter, r *htt
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	// Create connection context that respects application shutdown
 	ctx, cancel := context.WithCancel(appCtx)
 	defer cancel()
 
@@ -82,7 +77,6 @@ func (h *Handler) HandleWS(appCtx context.Context, w http.ResponseWriter, r *htt
 		return nil
 	})
 
-	// Goroutine 1: Read messages from WebSocket
 	go func() {
 		defer wg.Done()
 		defer cancel()
@@ -117,7 +111,6 @@ func (h *Handler) HandleWS(appCtx context.Context, w http.ResponseWriter, r *htt
 		}
 	}()
 
-	// Goroutine 2: Process messages from channel to PTY
 	go func() {
 		defer wg.Done()
 		defer ptyBridge.Close()
@@ -146,7 +139,6 @@ func (h *Handler) HandleWS(appCtx context.Context, w http.ResponseWriter, r *htt
 		}
 	}()
 
-	// Goroutine 3: Read from PTY and write to WebSocket
 	go func() {
 		defer wg.Done()
 		defer cancel()
@@ -203,7 +195,6 @@ func (h *Handler) HandleWS(appCtx context.Context, w http.ResponseWriter, r *htt
 		}
 	}()
 
-	// Wait for connection to close or context cancellation
 	select {
 	case <-ptyBridge.Done():
 		logger.WebSocketLogger.Info("PTY bridge closed, terminating WebSocket connection")
@@ -211,10 +202,7 @@ func (h *Handler) HandleWS(appCtx context.Context, w http.ResponseWriter, r *htt
 		logger.WebSocketLogger.Info("Context cancelled, terminating WebSocket connection")
 	}
 
-	// Cancel connection context and wait for all goroutines to finish
 	cancel()
-
-	// Wait for all goroutines to complete with timeout
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -228,7 +216,6 @@ func (h *Handler) HandleWS(appCtx context.Context, w http.ResponseWriter, r *htt
 		logger.WebSocketLogger.Warn("Timeout waiting for WebSocket goroutines to complete")
 	}
 
-	// Final cleanup
 	conn.Close()
 	ptyBridge.Close()
 }
@@ -237,7 +224,6 @@ func (h *Handler) HandleWS(appCtx context.Context, w http.ResponseWriter, r *htt
 // INTERFACE COMPLIANCE CHECKS
 // ============================================================================
 
-// Compile-time interface compliance checks
 var (
 	_ interfaces.WebSocketHandler = (*Handler)(nil)
 )
@@ -246,15 +232,12 @@ var (
 // FACTORY FUNCTIONS
 // ============================================================================
 
-// Factory implements the WebSocketHandlerFactory interface
 type Factory struct{}
 
-// NewFactory creates a new WebSocket handler factory
 func NewFactory() interfaces.WebSocketHandlerFactory {
 	return &Factory{}
 }
 
-// NewWebSocketHandler creates a new WebSocket handler instance
 func (f *Factory) NewWebSocketHandler(ptyFactory interfaces.PTYBridgeFactory) interfaces.WebSocketHandler {
 	return NewHandler(ptyFactory)
 }
@@ -263,20 +246,14 @@ func (f *Factory) NewWebSocketHandler(ptyFactory interfaces.PTYBridgeFactory) in
 // BACKWARD COMPATIBILITY
 // ============================================================================
 
-// HandleWS provides backward compatibility for the original function signature
 func HandleWS(appCtx context.Context, w http.ResponseWriter, r *http.Request) {
-	// Create default PTY factory for backward compatibility
 	ptyFactory := &defaultPTYFactory{}
 	handler := NewHandler(ptyFactory)
 	handler.HandleWS(appCtx, w, r)
 }
 
-// defaultPTYFactory provides a default implementation for backward compatibility
 type defaultPTYFactory struct{}
 
-// NewPTYBridge creates a PTY bridge using the original ptybridge.New function
 func (f *defaultPTYFactory) NewPTYBridge(ctx context.Context) (interfaces.PTYBridge, error) {
-	// Import ptybridge to use the original New function
-	// This maintains backward compatibility
 	return ptybridge.New(ctx)
 }

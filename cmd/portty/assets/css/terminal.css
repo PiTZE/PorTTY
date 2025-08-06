@@ -45,12 +45,12 @@ html, body {
 #terminal-container {
     flex: 1;
     width: 100%;
-    height: 100%; /* Ensure full height */
-    min-height: 0; /* Important for flex children to shrink properly */
+    height: 100%;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    position: relative; /* Ensure proper positioning context */
+    position: relative;
 }
 
 .terminal {
@@ -61,7 +61,7 @@ html, body {
 .xterm {
     flex: 1;
     width: 100%;
-    min-height: 0; /* Prevents flex item from overflowing */
+    min-height: 0;
     font-feature-settings: "liga" 0;
     position: relative;
     user-select: none;
@@ -111,19 +111,16 @@ html, body {
     left: 0;
     top: 0;
     bottom: 0;
-    /* Hide scrollbar while maintaining scrollback functionality */
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* Internet Explorer 10+ */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
-/* Hide scrollbar for WebKit browsers (Chrome, Safari, Edge) */
 .xterm .xterm-viewport::-webkit-scrollbar {
     display: none;
 }
 
 .xterm .xterm-screen {
     position: relative;
-    /* Remove !important to allow FitAddon to control dimensions */
     width: 100%;
     height: 100%;
 }
@@ -151,7 +148,6 @@ html, body {
 /* PWA ENHANCEMENTS */
 /* ============================================================================ */
 
-/* Install Banner */
 .install-banner {
     position: fixed;
     top: 0;
@@ -220,7 +216,6 @@ html, body {
     color: var(--foreground-color);
 }
 
-/* Connection Status */
 .connection-status {
     position: fixed !important;
     top: 0 !important;
@@ -302,7 +297,6 @@ html, body {
     background: var(--secondary-border-color);
 }
 
-/* Offline Mode UI */
 .offline-ui {
     position: fixed;
     top: 50%;
@@ -346,26 +340,21 @@ html, body {
 }
 
 
-/* PWA-specific styles when installed */
 @media (display-mode: standalone) {
     .install-banner {
         display: none !important;
     }
 }
 
-/* Animations */
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
 }
 
-/* Terminal adjustments for PWA */
 .terminal.pwa-mode {
-    /* Adjust terminal for PWA context */
     height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 
-/* Loading states */
 .loading {
     opacity: 0.7;
     pointer-events: none;
@@ -498,7 +487,6 @@ html, body {
 }
 
 
-/* Search result highlighting (xterm.js handles this internally) */
 .xterm-search-result {
     background-color: var(--accent-color) !important;
     color: var(--background-color) !important;
