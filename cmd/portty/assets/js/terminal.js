@@ -15,6 +15,19 @@ function isRunningOnLocalhost() {
     return ['localhost', '127.0.0.1', '::1'].includes(hostname);
 }
 
+function isMobileDevice() {
+    // Check for mobile devices using multiple detection methods
+    const userAgent = navigator.userAgent.toLowerCase();
+    const mobileKeywords = ['mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone'];
+    const hasMobileKeyword = mobileKeywords.some(keyword => userAgent.includes(keyword));
+    
+    // Check for touch capability and screen size
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isSmallScreen = window.innerWidth <= 768 || window.innerHeight <= 768;
+    
+    return hasMobileKeyword || (isTouchDevice && isSmallScreen);
+}
+
 function getThemeFromCSS() {
     const rootStyles = getComputedStyle(document.documentElement);
     return {
@@ -27,27 +40,27 @@ function getThemeFromCSS() {
 }
 
 function validateDependencies() {
-    if (typeof Terminal === 'undefined') {
-        console.error('Terminal not loaded');
-        return false;
+    const requiredAddons = [
+        { name: 'Terminal', check: () => typeof Terminal !== 'undefined' },
+        { name: 'FitAddon', check: () => typeof window.FitAddon !== 'undefined' && typeof window.FitAddon.FitAddon !== 'undefined' },
+        { name: 'AttachAddon', check: () => typeof window.AttachAddon !== 'undefined' && typeof window.AttachAddon.AttachAddon !== 'undefined' },
+        { name: 'WebglAddon', check: () => typeof window.WebglAddon !== 'undefined' && typeof window.WebglAddon.WebglAddon !== 'undefined' },
+        { name: 'SearchAddon', check: () => typeof window.SearchAddon !== 'undefined' && typeof window.SearchAddon.SearchAddon !== 'undefined' },
+        { name: 'Unicode11Addon', check: () => typeof window.Unicode11Addon !== 'undefined' && typeof window.Unicode11Addon.Unicode11Addon !== 'undefined' },
+        { name: 'WebLinksAddon', check: () => typeof window.WebLinksAddon !== 'undefined' && typeof window.WebLinksAddon.WebLinksAddon !== 'undefined' },
+        { name: 'ClipboardAddon', check: () => typeof window.ClipboardAddon !== 'undefined' && typeof window.ClipboardAddon.ClipboardAddon !== 'undefined' }
+    ];
+    
+    let allLoaded = true;
+    
+    for (const addon of requiredAddons) {
+        if (!addon.check()) {
+            console.error(`${addon.name} not loaded - check CDN link and network connectivity`);
+            allLoaded = false;
+        }
     }
     
-    if (typeof window.FitAddon === 'undefined' || typeof window.FitAddon.FitAddon === 'undefined') {
-        console.error('FitAddon not loaded');
-        return false;
-    }
-    
-    if (typeof window.AttachAddon === 'undefined' || typeof window.AttachAddon.AttachAddon === 'undefined') {
-        console.error('AttachAddon not loaded');
-        return false;
-    }
-    
-    if (typeof window.WebglAddon === 'undefined' || typeof window.WebglAddon.WebglAddon === 'undefined') {
-        console.error('WebglAddon not loaded');
-        return false;
-    }
-    
-    return true;
+    return allLoaded;
 }
 
 // ============================================================================
@@ -139,6 +152,139 @@ class ConnectionStatusManager {
     }
 }
 
+class FontSizeManager {
+    constructor(term) {
+        this.term = term;
+        this.currentSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--font-size').trim()) || 14;
+        this.minSize = 8;
+        this.maxSize = 32;
+    }
+    
+    increaseFontSize() {
+        if (this.currentSize < this.maxSize) {
+            this.currentSize += 1;
+            this.updateFontSize();
+        }
+    }
+    
+    decreaseFontSize() {
+        if (this.currentSize > this.minSize) {
+            this.currentSize -= 1;
+            this.updateFontSize();
+        }
+    }
+    
+    resetFontSize() {
+        this.currentSize = 14;
+        this.updateFontSize();
+    }
+    
+    updateFontSize() {
+        this.term.options.fontSize = this.currentSize;
+        document.documentElement.style.setProperty('--font-size', `${this.currentSize}px`);
+        
+        // Trigger resize to recalculate terminal dimensions
+        if (window.porttyFitAddon) {
+            requestAnimationFrame(() => {
+                window.porttyFitAddon.fit();
+                sendResize(this.term);
+            });
+        }
+    }
+}
+
+class SearchManager {
+    constructor(term, searchAddon) {
+        this.term = term;
+        this.searchAddon = searchAddon;
+        this.isSearchVisible = false;
+        this.createSearchOverlay();
+    }
+    
+    createSearchOverlay() {
+        this.searchOverlay = document.createElement('div');
+        this.searchOverlay.className = 'search-overlay hidden';
+        this.searchOverlay.innerHTML = `
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Search terminal..." />
+                <button id="search-prev" title="Previous match">↑</button>
+                <button id="search-next" title="Next match">↓</button>
+                <button id="search-close" title="Close search">×</button>
+            </div>
+        `;
+        
+        document.body.appendChild(this.searchOverlay);
+        
+        this.searchInput = document.getElementById('search-input');
+        this.searchPrev = document.getElementById('search-prev');
+        this.searchNext = document.getElementById('search-next');
+        this.searchClose = document.getElementById('search-close');
+        
+        this.setupSearchEvents();
+    }
+    
+    setupSearchEvents() {
+        this.searchInput.addEventListener('input', (e) => {
+            const query = e.target.value;
+            if (query) {
+                this.searchAddon.findNext(query);
+            }
+        });
+        
+        this.searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    this.findPrevious();
+                } else {
+                    this.findNext();
+                }
+            } else if (e.key === 'Escape') {
+                this.hideSearch();
+            }
+        });
+        
+        this.searchPrev.addEventListener('click', () => this.findPrevious());
+        this.searchNext.addEventListener('click', () => this.findNext());
+        this.searchClose.addEventListener('click', () => this.hideSearch());
+    }
+    
+    showSearch() {
+        this.isSearchVisible = true;
+        this.searchOverlay.classList.remove('hidden');
+        this.searchInput.focus();
+        this.searchInput.select();
+    }
+    
+    hideSearch() {
+        this.isSearchVisible = false;
+        this.searchOverlay.classList.add('hidden');
+        this.term.focus();
+    }
+    
+    findNext() {
+        const query = this.searchInput.value;
+        if (query) {
+            this.searchAddon.findNext(query);
+        }
+    }
+    
+    findPrevious() {
+        const query = this.searchInput.value;
+        if (query) {
+            this.searchAddon.findPrevious(query);
+        }
+    }
+    
+    toggleSearch() {
+        if (this.isSearchVisible) {
+            this.hideSearch();
+        } else {
+            this.showSearch();
+        }
+    }
+}
+
 // ============================================================================
 // MAIN INITIALIZATION LOGIC
 // ============================================================================
@@ -170,36 +316,61 @@ function initializePorTTY() {
         fastScrollModifier: 'alt',
         disableStdin: false,
         screenReaderMode: false,
-        rendererType: 'webgl' // Use WebGL renderer for better performance
+        rendererType: isMobileDevice() ? 'canvas' : 'webgl', // Smart renderer selection
+        allowProposedApi: true // Required for newer addons like Clipboard
         // No cols/rows specified - let FitAddon handle all sizing
     });
     
     // Load addons BEFORE opening terminal
     const fitAddon = new window.FitAddon.FitAddon();
     const webglAddon = new window.WebglAddon.WebglAddon();
+    const searchAddon = new window.SearchAddon.SearchAddon();
+    const unicode11Addon = new window.Unicode11Addon.Unicode11Addon();
+    const webLinksAddon = new window.WebLinksAddon.WebLinksAddon();
+    const clipboardAddon = new window.ClipboardAddon.ClipboardAddon();
     
     term.loadAddon(fitAddon);
+    term.loadAddon(searchAddon);
+    term.loadAddon(unicode11Addon);
+    term.loadAddon(webLinksAddon);
+    term.loadAddon(clipboardAddon);
     
     // Open terminal first
     term.open(terminalContainer);
     
-    // Load WebGL addon after opening with context loss handling
-    try {
-        // Handle WebGL context loss as per best practices
-        webglAddon.onContextLoss(e => {
-            webglAddon.dispose();
-        });
-        
-        term.loadAddon(webglAddon);
-    } catch (error) {
-        console.warn('[PorTTY] WebGL addon failed to load, falling back to canvas:', error);
+    // Load WebGL addon only for desktop devices
+    if (!isMobileDevice()) {
+        try {
+            // Handle WebGL context loss as per best practices
+            webglAddon.onContextLoss(e => {
+                webglAddon.dispose();
+            });
+            
+            term.loadAddon(webglAddon);
+        } catch (error) {
+            console.warn('[PorTTY] WebGL addon failed to load, falling back to canvas:', error);
+        }
     }
     
+    // Initialize addon managers
+    const fontSizeManager = new FontSizeManager(term);
+    const searchManager = new SearchManager(term, searchAddon);
+    
     // Wait for container to be properly sized, then fit
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+    const performInitialFit = () => {
+        const container = document.getElementById('terminal-container');
+        if (container && container.offsetWidth > 0 && container.offsetHeight > 0) {
             fitAddon.fit();
             term.focus();
+        } else {
+            // If container not ready, try again
+            setTimeout(performInitialFit, 10);
+        }
+    };
+    
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            performInitialFit();
         });
     });
     
@@ -213,10 +384,13 @@ function initializePorTTY() {
     window.porttyTerminal = term;
     window.porttyFitAddon = fitAddon;
     window.porttyConnectionManager = connectionManager;
+    window.porttyFontSizeManager = fontSizeManager;
+    window.porttySearchManager = searchManager;
     
     setupWebSocketConnection(term, fitAddon, connectionManager, socket, reconnectAttempts);
     setupReactiveResize(term, fitAddon);
     setupConnectionInfo(socket, reconnectAttempts, term);
+    setupKeyboardShortcuts(fontSizeManager, searchManager, term);
 }
 
 // ============================================================================
@@ -334,16 +508,7 @@ function setupReactiveResize(term, fitAddon) {
     // Only use window resize for maximum performance
     window.addEventListener('resize', performResize);
     
-    // Keyboard shortcuts and cleanup (non-resize related)
-    document.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey && e.key === 'r') || e.key === 'F5') {
-            if (window.porttySocket && window.porttySocket.readyState !== WebSocket.OPEN) {
-                e.preventDefault();
-                // Trigger reconnection logic would go here
-            }
-        }
-    });
-    
+    // Cleanup event listener
     window.addEventListener('beforeunload', () => {
         if (window.porttySocket && window.porttySocket.readyState === WebSocket.OPEN) {
             window.porttySocket.close(1000, 'Page unloaded');
@@ -385,6 +550,53 @@ Terminal: ${term.cols}x${term.rows}`);
             }, 100);
         });
     }
+}
+
+function setupKeyboardShortcuts(fontSizeManager, searchManager, term) {
+    // Add event listener to both document and terminal element for better capture
+    const handleKeydown = (e) => {
+        // Font size controls
+        if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
+            e.preventDefault();
+            e.stopPropagation();
+            fontSizeManager.increaseFontSize();
+            return;
+        }
+        
+        if (e.ctrlKey && e.key === '-') {
+            e.preventDefault();
+            e.stopPropagation();
+            fontSizeManager.decreaseFontSize();
+            return;
+        }
+        
+        if (e.ctrlKey && e.key === '0') {
+            e.preventDefault();
+            e.stopPropagation();
+            fontSizeManager.resetFontSize();
+            return;
+        }
+        
+        // Search functionality - try both 'f' and 'F'
+        if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+            e.preventDefault();
+            e.stopPropagation();
+            searchManager.toggleSearch();
+            return;
+        }
+        
+        // Reconnection shortcut
+        if ((e.ctrlKey && e.key === 'r') || e.key === 'F5') {
+            if (window.porttySocket && window.porttySocket.readyState !== WebSocket.OPEN) {
+                e.preventDefault();
+                // Trigger reconnection logic would go here
+            }
+        }
+    };
+    
+    // Add to both document and terminal for better event capture
+    document.addEventListener('keydown', handleKeydown, true); // Use capture phase
+    term.element.addEventListener('keydown', handleKeydown, true);
 }
 
 // ============================================================================

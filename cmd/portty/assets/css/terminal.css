@@ -327,49 +327,11 @@ html, body {
     background: var(--accent-hover-color);
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .install-content {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-    
-    .install-text {
-        font-size: 0.8rem;
-    }
-    
-    .connection-status {
-        /* Keep fixed positioning to avoid layout disruption */
-        position: fixed !important;
-        top: 0 !important;
-        right: 0 !important;
-        width: auto;
-        justify-content: center;
-        border-radius: 0;
-        border: none;
-        border-bottom: 1px solid var(--border-color);
-    }
-    
-    .offline-ui {
-        width: 95%;
-        padding: 1.5rem;
-    }
-    
-}
 
 /* PWA-specific styles when installed */
 @media (display-mode: standalone) {
     .install-banner {
         display: none !important;
-    }
-    
-    /* Add some top padding to account for status bar on mobile */
-    body {
-        padding-top: env(safe-area-inset-top);
-    }
-    
-    #terminal-container {
-        padding-top: 0;
     }
 }
 
@@ -407,4 +369,126 @@ html, body {
 
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+/* ============================================================================ */
+/* SEARCH OVERLAY STYLES */
+/* ============================================================================ */
+
+.search-overlay {
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    z-index: 1000;
+    background: linear-gradient(135deg, rgba(26, 26, 26, 0.98), rgba(42, 42, 42, 0.98));
+    border: 1px solid var(--accent-color);
+    border-radius: 8px;
+    padding: 1rem;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    font-family: var(--font-family);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.search-overlay.hidden {
+    display: none;
+    opacity: 0;
+    transform: translateY(-20px);
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 320px;
+}
+
+#search-input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.6);
+    border: 2px solid var(--tertiary-border-color);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    color: var(--foreground-color);
+    font-family: var(--font-family);
+    font-size: 0.9rem;
+    outline: none;
+    transition: all 0.2s ease;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+#search-input:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.3), inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.8);
+}
+
+#search-input::placeholder {
+    color: var(--secondary-text-color);
+    font-style: italic;
+}
+
+.search-box button {
+    background: linear-gradient(135deg, var(--tertiary-border-color), var(--border-color));
+    border: 1px solid var(--secondary-border-color);
+    border-radius: 6px;
+    color: var(--foreground-color);
+    font-family: var(--font-family);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.search-box button:hover {
+    background: linear-gradient(135deg, var(--secondary-border-color), var(--accent-color));
+    border-color: var(--accent-color);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.search-box button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+#search-prev, #search-next {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+#search-close {
+    background: linear-gradient(135deg, #cc4444, var(--error-color));
+    border-color: var(--error-color);
+    color: white;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+#search-close:hover {
+    background: linear-gradient(135deg, #ff6666, #ff4444);
+    border-color: #ff6666;
+}
+
+
+/* Search result highlighting (xterm.js handles this internally) */
+.xterm-search-result {
+    background-color: var(--accent-color) !important;
+    color: var(--background-color) !important;
+    border-radius: 2px !important;
+}
+
+.xterm-search-result.current {
+    background-color: var(--warning-color) !important;
+    color: var(--background-color) !important;
+    box-shadow: 0 0 4px rgba(255, 255, 128, 0.6) !important;
 }
