@@ -9,7 +9,6 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -19,8 +18,11 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
+	"github.com/PiTZE/PorTTY/internal/config"
+	"github.com/PiTZE/PorTTY/internal/interfaces"
+	"github.com/PiTZE/PorTTY/internal/logger"
+	"github.com/PiTZE/PorTTY/internal/ptybridge"
 	"github.com/PiTZE/PorTTY/internal/websocket"
 )
 
@@ -31,10 +33,267 @@ import (
 //go:embed assets
 var webContent embed.FS
 
-const (
-	SessionName    = "PorTTY"
-	PidFileName    = ".portty.pid"
-	DefaultAddress = "localhost:7314"
+// Configuration instance
+var cfg = config.Default
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+// ServerManager implements the ServerManager interface
+type ServerManager struct {
+	addressParser  interfaces.AddressParser
+	processManager interfaces.ProcessManager
+	pidFileManager interfaces.PIDFileManager
+	tmuxManager    interfaces.TmuxSessionManager
+	httpManager    interfaces.HTTPServerManager
+	wsHandler      interfaces.WebSocketHandler
+}
+
+// AddressParser implements the AddressParser interface
+type AddressParser struct{}
+
+// ProcessManager implements the ProcessManager interface
+type ProcessManager struct{}
+
+// PIDFileManager implements the PIDFileManager interface
+type PIDFileManager struct{}
+
+// TmuxSessionManager implements the TmuxSessionManager interface
+type TmuxSessionManager struct{}
+
+// HTTPServerManager implements the HTTPServerManager interface
+type HTTPServerManager struct{}
+
+// HTTPServerWrapper wraps the standard http.Server to implement HTTPServer interface
+type HTTPServerWrapper struct {
+	server *http.Server
+}
+
+// ============================================================================
+// INTERFACE IMPLEMENTATIONS
+// ============================================================================
+
+// AddressParser implementations
+func (ap *AddressParser) ParseAddress(address string) (string, int, error) {
+	return parseAddress(address)
+}
+
+// ProcessManager implementations
+func (pm *ProcessManager) CheckTmuxInstalled() bool {
+	return checkTmuxInstalled()
+}
+
+func (pm *ProcessManager) CheckSessionExists(sessionName string) bool {
+	return checkSessionExists(sessionName)
+}
+
+func (pm *ProcessManager) FindAndKillProcess() error {
+	findAndKillProcess()
+	return nil
+}
+
+func (pm *ProcessManager) StopServer(pidFilePath string) error {
+	stopServer(pidFilePath)
+	return nil
+}
+
+// PIDFileManager implementations
+func (pfm *PIDFileManager) WritePIDFile(pidFilePath string, pid int) error {
+	return os.WriteFile(pidFilePath, []byte(strconv.Itoa(pid)), cfg.Server.PidFilePermissions)
+}
+
+func (pfm *PIDFileManager) ReadPIDFile(pidFilePath string) (int, error) {
+	pidBytes, err := os.ReadFile(pidFilePath)
+	if err != nil {
+		return 0, err
+	}
+	pidStr := strings.TrimSpace(string(pidBytes))
+	return strconv.Atoi(pidStr)
+}
+
+func (pfm *PIDFileManager) RemovePIDFile(pidFilePath string) error {
+	return os.Remove(pidFilePath)
+}
+
+// TmuxSessionManager implementations
+func (tsm *TmuxSessionManager) CleanupTmuxSessions(ctx context.Context) error {
+	cleanupTmuxSessions(ctx)
+	return nil
+}
+
+// HTTPServerManager implementations
+func (hsm *HTTPServerManager) CreateServer(address string, handler http.Handler) interfaces.HTTPServer {
+	server := &http.Server{
+		Addr:    address,
+		Handler: handler,
+	}
+	return &HTTPServerWrapper{server: server}
+}
+
+// HTTPServerWrapper implementations
+func (hsw *HTTPServerWrapper) ListenAndServe() error {
+	return hsw.server.ListenAndServe()
+}
+
+func (hsw *HTTPServerWrapper) Shutdown(ctx context.Context) error {
+	return hsw.server.Shutdown(ctx)
+}
+
+// ServerManager implementations
+func (sm *ServerManager) Start(ctx context.Context, address string) error {
+	// Use the injected dependencies instead of calling functions directly
+	if !sm.processManager.CheckTmuxInstalled() {
+		return fmt.Errorf("tmux is not installed. Please install tmux to use PorTTY")
+	}
+
+	host, port, err := sm.addressParser.ParseAddress(address)
+	if err != nil {
+		return fmt.Errorf("failed to parse server address: %w", err)
+	}
+
+	if sm.processManager.CheckSessionExists(cfg.Server.SessionName) {
+		logger.ServerLogger.Info("Found existing tmux session", logger.String("session", cfg.Server.SessionName))
+	}
+
+	// Get PID file path
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		homeDir = cfg.Server.FallbackTempDir
+	}
+	pidFilePath := filepath.Join(homeDir, cfg.Server.PidFileName)
+
+	pid := os.Getpid()
+	if err := sm.pidFileManager.WritePIDFile(pidFilePath, pid); err != nil {
+		logger.ServerLogger.Warn("failed to write PID file", logger.String("path", pidFilePath), logger.Error(err))
+	}
+
+	// Create application-level context for coordinated shutdown
+	appCtx, appCancel := context.WithCancel(ctx)
+	defer appCancel()
+
+	mux := http.NewServeMux()
+
+	// Pass application context to WebSocket handler
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		sm.wsHandler.HandleWS(appCtx, w, r)
+	})
+
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/x-icon")
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	webFS, err := fs.Sub(webContent, "assets")
+	if err != nil {
+		return fmt.Errorf("failed to create sub-filesystem for embedded assets: %w", err)
+	}
+
+	fileServer := http.FileServer(http.FS(webFS))
+	mux.Handle("/", fileServer)
+
+	bindAddr := fmt.Sprintf("%s:%d", host, port)
+	server := sm.httpManager.CreateServer(bindAddr, mux)
+
+	// Start HTTP server in goroutine
+	serverErrChan := make(chan error, 1)
+	go func() {
+		logger.ServerLogger.Info("Starting PorTTY", logger.String("url", "http://"+bindAddr))
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			serverErrChan <- err
+		}
+	}()
+
+	// Setup signal handling for graceful shutdown
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	// Wait for shutdown signal or server error
+	select {
+	case <-stop:
+		logger.ServerLogger.Info("Received shutdown signal")
+	case err := <-serverErrChan:
+		return fmt.Errorf("HTTP server failed: %w", err)
+	case <-appCtx.Done():
+		logger.ServerLogger.Info("Application context cancelled")
+	}
+
+	// Begin coordinated shutdown sequence
+	logger.ServerLogger.Info("Beginning graceful shutdown")
+
+	// Cancel application context to signal all components to shutdown
+	appCancel()
+
+	// Create shutdown context with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+	defer shutdownCancel()
+
+	// Shutdown HTTP server
+	logger.ServerLogger.Info("Shutting down HTTP server")
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.ServerLogger.Error("failed to gracefully shutdown HTTP server", err)
+	}
+
+	// Clean up PID file
+	if err := sm.pidFileManager.RemovePIDFile(pidFilePath); err != nil && !os.IsNotExist(err) {
+		logger.ServerLogger.Warn("failed to remove PID file", logger.String("path", pidFilePath), logger.Error(err))
+	}
+
+	// Clean up tmux sessions
+	logger.ServerLogger.Info("Cleaning up tmux sessions")
+	if err := sm.tmuxManager.CleanupTmuxSessions(shutdownCtx); err != nil {
+		logger.ServerLogger.Error("failed to cleanup tmux sessions", err)
+	}
+
+	logger.ServerLogger.Info("Server gracefully stopped")
+	return nil
+}
+
+func (sm *ServerManager) Stop(ctx context.Context) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		homeDir = cfg.Server.FallbackTempDir
+	}
+	pidFilePath := filepath.Join(homeDir, cfg.Server.PidFileName)
+
+	return sm.processManager.StopServer(pidFilePath)
+}
+
+// ============================================================================
+// FACTORY FUNCTIONS
+// ============================================================================
+
+// NewServerManager creates a new server manager with dependency injection
+func NewServerManager() interfaces.ServerManager {
+	// Create PTY factory
+	ptyFactory := ptybridge.NewFactory()
+
+	// Create WebSocket handler with PTY factory
+	wsHandler := websocket.NewHandler(ptyFactory)
+
+	return &ServerManager{
+		addressParser:  &AddressParser{},
+		processManager: &ProcessManager{},
+		pidFileManager: &PIDFileManager{},
+		tmuxManager:    &TmuxSessionManager{},
+		httpManager:    &HTTPServerManager{},
+		wsHandler:      wsHandler,
+	}
+}
+
+// ============================================================================
+// INTERFACE COMPLIANCE CHECKS
+// ============================================================================
+
+// Compile-time interface compliance checks
+var (
+	_ interfaces.ServerManager      = (*ServerManager)(nil)
+	_ interfaces.AddressParser      = (*AddressParser)(nil)
+	_ interfaces.ProcessManager     = (*ProcessManager)(nil)
+	_ interfaces.PIDFileManager     = (*PIDFileManager)(nil)
+	_ interfaces.TmuxSessionManager = (*TmuxSessionManager)(nil)
+	_ interfaces.HTTPServerManager  = (*HTTPServerManager)(nil)
+	_ interfaces.HTTPServer         = (*HTTPServerWrapper)(nil)
 )
 
 // ============================================================================
@@ -45,12 +304,12 @@ const (
 func parseAddress(address string) (string, int, error) {
 	host, portStr, err := net.SplitHostPort(address)
 	if err != nil {
-		return "", 0, fmt.Errorf("invalid address format: %w", err)
+		return "", 0, fmt.Errorf("failed to parse address %q: %w", address, err)
 	}
 
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		return "", 0, fmt.Errorf("invalid port: %w", err)
+		return "", 0, fmt.Errorf("failed to parse port %q in address %q: %w", portStr, address, err)
 	}
 
 	if host == "" {
@@ -75,12 +334,12 @@ func checkSessionExists(sessionName string) bool {
 
 // findAndKillProcess tries to find and kill the PorTTY process by name
 func findAndKillProcess() {
-	log.Println("Trying to find PorTTY process by name...")
+	logger.ServerLogger.Info("Trying to find PorTTY process by name")
 
 	cmd := exec.Command("bash", "-c", "pgrep -f 'portty run'")
 	output, err := cmd.Output()
 	if err != nil {
-		log.Printf("No PorTTY process found")
+		logger.ServerLogger.Info("No PorTTY process found")
 		return
 	}
 
@@ -101,11 +360,11 @@ func findAndKillProcess() {
 		}
 
 		if err := process.Signal(syscall.SIGTERM); err != nil {
-			log.Printf("Failed to send signal to process %d: %v", pid, err)
+			logger.ServerLogger.Error("failed to send SIGTERM signal to process", err, logger.Int("pid", pid))
 			continue
 		}
 
-		log.Printf("Sent termination signal to PorTTY (PID: %d)", pid)
+		logger.ServerLogger.Info("Sent termination signal to PorTTY", logger.Int("pid", pid))
 	}
 }
 
@@ -133,7 +392,7 @@ func showRunHelp() {
 
 	fmt.Println("ARGUMENTS:")
 	fmt.Println("  address               Address to bind to (format: [host]:[port])")
-	fmt.Printf("                        Default: %s\n", DefaultAddress)
+	fmt.Printf("                        Default: %s\n", cfg.Server.DefaultAddress)
 	fmt.Println()
 
 	fmt.Println("EXAMPLES:")
@@ -165,7 +424,7 @@ func showStopHelp() {
 
 // showVersion displays version information
 func showVersion() {
-	fmt.Println("PorTTY v0.1")
+	fmt.Printf("PorTTY %s\n", cfg.Server.Version)
 	fmt.Println("A lightweight, web-based terminal emulator powered by tmux")
 	fmt.Println("https://github.com/PiTZE/PorTTY")
 }
@@ -173,7 +432,7 @@ func showVersion() {
 // showHelp displays usage information
 func showHelp() {
 	programName := filepath.Base(os.Args[0])
-	version := "v0.1"
+	version := cfg.Server.Version
 
 	fmt.Printf("PorTTY %s - Web-based Terminal\n", version)
 	fmt.Println("A lightweight, web-based terminal emulator powered by tmux")
@@ -195,7 +454,7 @@ func showHelp() {
 
 	fmt.Println("RUN OPTIONS:")
 	fmt.Println("  address        Address to bind to (format: [host]:[port])")
-	fmt.Printf("                 Default: %s\n", DefaultAddress)
+	fmt.Printf("                 Default: %s\n", cfg.Server.DefaultAddress)
 	fmt.Println()
 
 	fmt.Println("EXAMPLES:")
@@ -214,29 +473,48 @@ func showHelp() {
 // CORE BUSINESS LOGIC
 // ============================================================================
 
-// runServer starts the PorTTY server
+// runServer starts the PorTTY server using the new interface-based architecture
 func runServer(address string, pidFilePath string) {
+	// Create server manager with dependency injection
+	serverManager := NewServerManager()
+
+	// Start the server using the interface-based approach
+	ctx := context.Background()
+	if err := serverManager.Start(ctx, address); err != nil {
+		logger.ServerLogger.Fatal("failed to start server", err, logger.String("address", address))
+	}
+}
+
+// runServerLegacy provides the original implementation for backward compatibility
+func runServerLegacy(address string, pidFilePath string) {
 	if !checkTmuxInstalled() {
-		log.Fatalf("tmux is not installed. Please install tmux to use PorTTY.")
+		logger.ServerLogger.Fatal("tmux is not installed. Please install tmux to use PorTTY", fmt.Errorf("tmux not found in PATH"))
 	}
 
 	host, port, err := parseAddress(address)
 	if err != nil {
-		log.Fatalf("Error parsing address: %v", err)
+		logger.ServerLogger.Fatal("failed to parse server address", err, logger.String("address", address))
 	}
 
-	if checkSessionExists(SessionName) {
-		log.Printf("Found existing tmux session: %s", SessionName)
+	if checkSessionExists(cfg.Server.SessionName) {
+		logger.ServerLogger.Info("Found existing tmux session", logger.String("session", cfg.Server.SessionName))
 	}
 
 	pid := os.Getpid()
-	if err := os.WriteFile(pidFilePath, []byte(strconv.Itoa(pid)), 0644); err != nil {
-		log.Printf("Warning: Failed to write PID file: %v", err)
+	if err := os.WriteFile(pidFilePath, []byte(strconv.Itoa(pid)), cfg.Server.PidFilePermissions); err != nil {
+		logger.ServerLogger.Warn("failed to write PID file", logger.String("path", pidFilePath), logger.Error(err))
 	}
+
+	// Create application-level context for coordinated shutdown
+	appCtx, appCancel := context.WithCancel(context.Background())
+	defer appCancel()
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/ws", websocket.HandleWS)
+	// Pass application context to WebSocket handler
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		websocket.HandleWS(appCtx, w, r)
+	})
 
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/x-icon")
@@ -245,7 +523,7 @@ func runServer(address string, pidFilePath string) {
 
 	webFS, err := fs.Sub(webContent, "assets")
 	if err != nil {
-		log.Fatalf("Failed to create sub-filesystem: %v", err)
+		logger.ServerLogger.Fatal("failed to create sub-filesystem for embedded assets", err)
 	}
 
 	fileServer := http.FileServer(http.FS(webFS))
@@ -257,38 +535,82 @@ func runServer(address string, pidFilePath string) {
 		Handler: mux,
 	}
 
+	// Start HTTP server in goroutine
+	serverErrChan := make(chan error, 1)
 	go func() {
-		log.Printf("Starting PorTTY on http://%s", bindAddr)
+		logger.ServerLogger.Info("Starting PorTTY", logger.String("url", "http://"+bindAddr))
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server error: %v", err)
+			serverErrChan <- err
 		}
 	}()
 
+	// Setup signal handling for graceful shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
-	<-stop
-	log.Println("Shutting down server...")
+	// Wait for shutdown signal or server error
+	select {
+	case <-stop:
+		logger.ServerLogger.Info("Received shutdown signal")
+	case err := <-serverErrChan:
+		logger.ServerLogger.Fatal("HTTP server failed", err, logger.String("address", bindAddr))
+	case <-appCtx.Done():
+		logger.ServerLogger.Info("Application context cancelled")
+	}
 
-	os.Remove(pidFilePath)
+	// Begin coordinated shutdown sequence
+	logger.ServerLogger.Info("Beginning graceful shutdown")
 
-	log.Println("Cleaning up tmux session...")
-	killCmd := exec.Command("tmux", "kill-session", "-t", SessionName)
+	// Cancel application context to signal all components to shutdown
+	appCancel()
+
+	// Create shutdown context with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+	defer shutdownCancel()
+
+	// Shutdown HTTP server
+	logger.ServerLogger.Info("Shutting down HTTP server")
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.ServerLogger.Error("failed to gracefully shutdown HTTP server", err)
+	}
+
+	// Clean up PID file
+	if err := os.Remove(pidFilePath); err != nil && !os.IsNotExist(err) {
+		logger.ServerLogger.Warn("failed to remove PID file", logger.String("path", pidFilePath), logger.Error(err))
+	}
+
+	// Clean up tmux sessions
+	logger.ServerLogger.Info("Cleaning up tmux sessions")
+	cleanupTmuxSessions(shutdownCtx)
+
+	logger.ServerLogger.Info("Server gracefully stopped")
+}
+
+// cleanupTmuxSessions performs context-aware cleanup of tmux sessions
+func cleanupTmuxSessions(ctx context.Context) {
+	// Create timeout context for tmux cleanup operations
+	cleanupCtx, cleanupCancel := context.WithTimeout(ctx, cfg.Server.TmuxCleanupTimeout)
+	defer cleanupCancel()
+
+	// Kill main session
+	killCmd := exec.CommandContext(cleanupCtx, "tmux", "kill-session", "-t", cfg.Server.SessionName)
 	if err := killCmd.Run(); err != nil {
-		log.Printf("Failed to kill tmux session: %v", err)
+		if err == context.DeadlineExceeded {
+			logger.ServerLogger.Warn("tmux session kill timed out", logger.String("session", cfg.Server.SessionName))
+		} else {
+			logger.ServerLogger.Error("failed to kill tmux session", err, logger.String("session", cfg.Server.SessionName))
+		}
 	}
 
-	cleanupCmd := exec.Command("bash", "-c", "tmux list-sessions -F '#{session_name}' 2>/dev/null | grep '^PorTTY-' | xargs -I{} tmux kill-session -t {} 2>/dev/null || true")
-	cleanupCmd.Run()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+	// Clean up any orphaned PorTTY sessions
+	cleanupCmd := exec.CommandContext(cleanupCtx, "bash", "-c", "tmux list-sessions -F '#{session_name}' 2>/dev/null | grep '^PorTTY-' | xargs -I{} tmux kill-session -t {} 2>/dev/null || true")
+	if err := cleanupCmd.Run(); err != nil {
+		if err == context.DeadlineExceeded {
+			logger.ServerLogger.Warn("tmux cleanup timed out")
+		} else {
+			logger.ServerLogger.Warn("failed to cleanup orphaned tmux sessions", logger.Error(err))
+		}
 	}
-
-	log.Println("Server gracefully stopped")
 }
 
 // stopServer stops the PorTTY server
@@ -302,25 +624,25 @@ func stopServer(pidFilePath string) {
 	pidStr := strings.TrimSpace(string(pidBytes))
 	pid, err := strconv.Atoi(pidStr)
 	if err != nil {
-		log.Printf("Invalid PID in file: %v", err)
+		logger.ServerLogger.Error("invalid PID in file", err, logger.String("pid", pidStr), logger.String("file", pidFilePath))
 		findAndKillProcess()
 		return
 	}
 
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		log.Printf("Failed to find process with PID %d: %v", pid, err)
+		logger.ServerLogger.Error("failed to find process", err, logger.Int("pid", pid))
 		findAndKillProcess()
 		return
 	}
 
 	if err := process.Signal(syscall.SIGTERM); err != nil {
-		log.Printf("Failed to send signal to process: %v", err)
+		logger.ServerLogger.Error("failed to send SIGTERM signal to process", err, logger.Int("pid", pid))
 		findAndKillProcess()
 		return
 	}
 
-	log.Printf("Sent termination signal to PorTTY (PID: %d)", pid)
+	logger.ServerLogger.Info("Sent termination signal to PorTTY", logger.Int("pid", pid))
 
 	os.Remove(pidFilePath)
 }
@@ -332,9 +654,9 @@ func stopServer(pidFilePath string) {
 func main() {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		homeDir = "/tmp"
+		homeDir = cfg.Server.FallbackTempDir
 	}
-	pidFilePath := filepath.Join(homeDir, PidFileName)
+	pidFilePath := filepath.Join(homeDir, cfg.Server.PidFileName)
 
 	for _, arg := range os.Args {
 		if arg == "-h" || arg == "--help" {
@@ -356,7 +678,7 @@ func main() {
 
 	switch command {
 	case "run":
-		address := DefaultAddress
+		address := cfg.Server.DefaultAddress
 
 		args := os.Args[2:]
 		for i := 0; i < len(args); i++ {

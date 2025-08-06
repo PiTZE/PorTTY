@@ -7,11 +7,13 @@ package websocket
 import (
 	"context"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/PiTZE/PorTTY/internal/config"
+	"github.com/PiTZE/PorTTY/internal/interfaces"
+	"github.com/PiTZE/PorTTY/internal/logger"
 	"github.com/PiTZE/PorTTY/internal/ptybridge"
 	"github.com/gorilla/websocket"
 )
@@ -20,53 +22,73 @@ import (
 // CONSTANTS AND GLOBAL VARIABLES
 // ============================================================================
 
-const (
-	writeWait      = 10 * time.Second
-	pongWait       = 60 * time.Second
-	pingPeriod     = (pongWait * 9) / 10
-	maxMessageSize = 16384
-)
+// Configuration instance
+var cfg = config.Default
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  4096,
-	WriteBufferSize: 4096,
+	ReadBufferSize:  int(cfg.WebSocket.ReadBufferSize),
+	WriteBufferSize: int(cfg.WebSocket.WriteBufferSize),
 	CheckOrigin:     func(r *http.Request) bool { return true },
+}
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+// Handler implements the WebSocketHandler interface
+type Handler struct {
+	ptyFactory interfaces.PTYBridgeFactory
+	upgrader   *websocket.Upgrader
 }
 
 // ============================================================================
 // CORE BUSINESS LOGIC
 // ============================================================================
 
-// HandleWS handles WebSocket connections
-func HandleWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+// NewHandler creates a new WebSocket handler with dependency injection
+func NewHandler(ptyFactory interfaces.PTYBridgeFactory) interfaces.WebSocketHandler {
+	return &Handler{
+		ptyFactory: ptyFactory,
+		upgrader: &websocket.Upgrader{
+			ReadBufferSize:  int(cfg.WebSocket.ReadBufferSize),
+			WriteBufferSize: int(cfg.WebSocket.WriteBufferSize),
+			CheckOrigin:     func(r *http.Request) bool { return true },
+		},
+	}
+}
+
+// HandleWS handles WebSocket connections with application context coordination
+func (h *Handler) HandleWS(appCtx context.Context, w http.ResponseWriter, r *http.Request) {
+	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("Error upgrading to WebSocket: %v", err)
+		logger.WebSocketLogger.Error("failed to upgrade connection to WebSocket", err)
 		return
 	}
 
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// Create connection context that respects application shutdown
+	ctx, cancel := context.WithCancel(appCtx)
 	defer cancel()
 
-	ptyBridge, err := ptybridge.New()
+	ptyBridge, err := h.ptyFactory.NewPTYBridge(ctx)
 	if err != nil {
-		log.Printf("Error creating PTY bridge: %v", err)
+		logger.WebSocketLogger.Error("failed to create PTY bridge", err)
 		conn.Close()
 		return
 	}
 
-	messageChan := make(chan []byte, 100)
+	messageChan := make(chan []byte, cfg.WebSocket.MessageChannelBuffer)
 
-	conn.SetReadLimit(maxMessageSize)
-	conn.SetReadDeadline(time.Now().Add(pongWait))
+	conn.SetReadLimit(cfg.WebSocket.MaxMessageSize)
+	conn.SetReadDeadline(time.Now().Add(cfg.WebSocket.PongWait))
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(pongWait))
+		conn.SetReadDeadline(time.Now().Add(cfg.WebSocket.PongWait))
 		return nil
 	})
 
+	// Goroutine 1: Read messages from WebSocket
 	go func() {
 		defer wg.Done()
 		defer cancel()
@@ -75,14 +97,15 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 		for {
 			select {
 			case <-ctx.Done():
+				logger.WebSocketLogger.Info("WebSocket reader shutting down due to context cancellation")
 				return
 			default:
-				conn.SetReadDeadline(time.Now().Add(pongWait))
+				conn.SetReadDeadline(time.Now().Add(cfg.WebSocket.PongWait))
 
 				messageType, message, err := conn.ReadMessage()
 				if err != nil {
 					if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-						log.Printf("WebSocket read error: %v", err)
+						logger.WebSocketLogger.Error("unexpected WebSocket read error", err)
 					}
 					return
 				}
@@ -90,14 +113,17 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 				if messageType == websocket.TextMessage || messageType == websocket.BinaryMessage {
 					select {
 					case messageChan <- message:
+					case <-ctx.Done():
+						return
 					default:
-						log.Printf("Warning: Message channel full, dropping message")
+						logger.WebSocketLogger.Warn("message channel full, dropping message")
 					}
 				}
 			}
 		}
 	}()
 
+	// Goroutine 2: Process messages from channel to PTY
 	go func() {
 		defer wg.Done()
 		defer ptyBridge.Close()
@@ -105,15 +131,20 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 		for {
 			select {
 			case <-ctx.Done():
+				logger.WebSocketLogger.Info("WebSocket message processor shutting down due to context cancellation")
 				return
 			case message, ok := <-messageChan:
 				if !ok {
 					return
 				}
 
-				if err := ptyBridge.ProcessInput(message); err != nil {
+				if err := ptyBridge.ProcessInput(ctx, message); err != nil {
 					if err == io.EOF || err == io.ErrClosedPipe {
-						log.Printf("Fatal error processing input: %v", err)
+						logger.WebSocketLogger.Error("fatal error processing input", err)
+						return
+					}
+					if err == context.Canceled || err == context.DeadlineExceeded {
+						logger.WebSocketLogger.Info("PTY input processing cancelled")
 						return
 					}
 				}
@@ -121,19 +152,21 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	// Goroutine 3: Read from PTY and write to WebSocket
 	go func() {
 		defer wg.Done()
 		defer cancel()
 		defer conn.Close()
 
-		buf := make([]byte, 16384)
+		buf := make([]byte, cfg.WebSocket.MaxMessageSize)
 
 		for {
 			select {
 			case <-ctx.Done():
+				logger.WebSocketLogger.Info("WebSocket writer shutting down due to context cancellation")
 				return
 			default:
-				n, err := ptyBridge.Read(buf)
+				n, err := ptyBridge.Read(ctx, buf)
 
 				if err != nil {
 					if err == io.EOF {
@@ -144,33 +177,112 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 
-					time.Sleep(50 * time.Millisecond)
-					continue
+					if err == context.Canceled || err == context.DeadlineExceeded {
+						logger.WebSocketLogger.Info("PTY read cancelled")
+						return
+					}
+
+					select {
+					case <-time.After(cfg.WebSocket.ErrorRetryDelay):
+						continue
+					case <-ctx.Done():
+						return
+					}
 				}
 
 				if n > 0 {
-					conn.SetWriteDeadline(time.Now().Add(writeWait))
+					conn.SetWriteDeadline(time.Now().Add(cfg.WebSocket.WriteWait))
 					if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
 						if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 							return
 						}
 
-						time.Sleep(50 * time.Millisecond)
+						select {
+						case <-time.After(cfg.WebSocket.ErrorRetryDelay):
+							continue
+						case <-ctx.Done():
+							return
+						}
 					}
 				}
 			}
 		}
 	}()
 
+	// Wait for connection to close or context cancellation
 	select {
 	case <-ptyBridge.Done():
+		logger.WebSocketLogger.Info("PTY bridge closed, terminating WebSocket connection")
 	case <-ctx.Done():
+		logger.WebSocketLogger.Info("Context cancelled, terminating WebSocket connection")
 	}
 
+	// Cancel connection context and wait for all goroutines to finish
 	cancel()
 
-	wg.Wait()
+	// Wait for all goroutines to complete with timeout
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
 
+	select {
+	case <-done:
+		logger.WebSocketLogger.Info("All WebSocket goroutines completed")
+	case <-time.After(cfg.WebSocket.WriteWait):
+		logger.WebSocketLogger.Warn("Timeout waiting for WebSocket goroutines to complete")
+	}
+
+	// Final cleanup
 	conn.Close()
 	ptyBridge.Close()
+}
+
+// ============================================================================
+// INTERFACE COMPLIANCE CHECKS
+// ============================================================================
+
+// Compile-time interface compliance checks
+var (
+	_ interfaces.WebSocketHandler = (*Handler)(nil)
+)
+
+// ============================================================================
+// FACTORY FUNCTIONS
+// ============================================================================
+
+// Factory implements the WebSocketHandlerFactory interface
+type Factory struct{}
+
+// NewFactory creates a new WebSocket handler factory
+func NewFactory() interfaces.WebSocketHandlerFactory {
+	return &Factory{}
+}
+
+// NewWebSocketHandler creates a new WebSocket handler instance
+func (f *Factory) NewWebSocketHandler(ptyFactory interfaces.PTYBridgeFactory) interfaces.WebSocketHandler {
+	return NewHandler(ptyFactory)
+}
+
+// ============================================================================
+// BACKWARD COMPATIBILITY
+// ============================================================================
+
+// HandleWS provides backward compatibility for the original function signature
+func HandleWS(appCtx context.Context, w http.ResponseWriter, r *http.Request) {
+	// Create default PTY factory for backward compatibility
+	ptyFactory := &defaultPTYFactory{}
+	handler := NewHandler(ptyFactory)
+	handler.HandleWS(appCtx, w, r)
+}
+
+// defaultPTYFactory provides a default implementation for backward compatibility
+type defaultPTYFactory struct{}
+
+// NewPTYBridge creates a PTY bridge using the original ptybridge.New function
+func (f *defaultPTYFactory) NewPTYBridge(ctx context.Context) (interfaces.PTYBridge, error) {
+	// Import ptybridge to use the original New function
+	// This maintains backward compatibility
+	return ptybridge.New(ctx)
 }
