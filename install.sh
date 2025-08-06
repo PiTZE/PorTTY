@@ -140,7 +140,7 @@ check_tmux() {
     if ! command -v tmux &> /dev/null; then
         log_error "tmux is not installed."
         log_info "Please install tmux first:"
-        echo "  - Debian/Ubuntu: sudo apt-get install tmux"
+        echo "  - Debian/Ubuntu: sudo apt install tmux"
         echo "  - CentOS/RHEL: sudo yum install tmux"
         echo "  - macOS: brew install tmux"
         return 1
