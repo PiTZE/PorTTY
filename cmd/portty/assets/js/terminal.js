@@ -160,7 +160,6 @@ function initializePorTTY() {
     
     const connectionManager = new ConnectionStatusManager();
     
-    setupPWAInstallation();
     setupWebSocketConnection(term, fitAddon, connectionManager, socket, reconnectAttempts);
     setupEventListeners(term, fitAddon, socket);
     setupConnectionInfo(socket, reconnectAttempts, term);
@@ -173,31 +172,7 @@ function initializePorTTY() {
 // EVENT LISTENERS AND HANDLERS
 // ============================================================================
 
-function setupPWAInstallation() {
-    let deferredPrompt;
-    
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-        showInstallButton(deferredPrompt);
-    });
-}
-
-function showInstallButton(deferredPrompt) {
-    const installButton = document.getElementById('install-button');
-    if (installButton) {
-        installButton.style.display = 'block';
-        installButton.addEventListener('click', async () => {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                console.log(`User response to the install prompt: ${outcome}`);
-                deferredPrompt = null;
-                installButton.style.display = 'none';
-            }
-        });
-    }
-}
+// PWA installation is handled in index.html to avoid conflicts
 
 function setupWebSocketConnection(term, fitAddon, connectionManager, socket, reconnectAttempts) {
     function connectWebSocket() {

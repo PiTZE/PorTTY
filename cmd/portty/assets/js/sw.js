@@ -8,10 +8,11 @@ const DYNAMIC_CACHE = 'portty-dynamic-v0.2';
 
 const STATIC_ASSETS = [
     '/',
-    '/terminal.css',
-    '/terminal.js',
+    '/css/terminal.css',
+    '/js/terminal.js',
     '/manifest.json',
-    '/icon.svg',
+    '/icons/dark-theme-icon.svg',
+    '/icons/light-theme-icon.svg',
     'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css',
     'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js',
     'https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js',
@@ -290,8 +291,8 @@ async function updateCache() {
         
         const criticalAssets = [
             '/',
-            '/terminal.js',
-            '/terminal.css'
+            '/js/terminal.js',
+            '/css/terminal.css'
         ];
         
         for (const asset of criticalAssets) {
@@ -318,8 +319,8 @@ self.addEventListener('push', (event) => {
     
     const options = {
         body: 'Terminal activity detected',
-        icon: '/icon.svg',
-        badge: '/icon.svg',
+        icon: '/icons/dark-theme-icon.svg',
+        badge: '/icons/dark-theme-icon.svg',
         tag: 'terminal-activity',
         requireInteraction: false,
         actions: [

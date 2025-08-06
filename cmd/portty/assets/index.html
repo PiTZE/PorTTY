@@ -25,15 +25,15 @@
     <!-- ============================================================================ -->
     <!-- ICONS AND RESOURCES -->
     <!-- ============================================================================ -->
-    <link rel="icon" href="/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/icon.svg">
+    <link rel="icon" href="/icons/dark-theme-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icons/dark-theme-icon.svg">
     
     <!-- ============================================================================ -->
     <!-- EXTERNAL STYLESHEETS -->
     <!-- ============================================================================ -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap">
-    <link rel="stylesheet" href="/terminal.css">
+    <link rel="stylesheet" href="/css/terminal.css">
 </head>
 <body>
     <!-- ============================================================================ -->
@@ -90,7 +90,7 @@
         
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
+                navigator.serviceWorker.register('/js/sw.js')
                     .then((registration) => {
                         console.log('SW registered: ', registration);
                     })
@@ -142,6 +142,6 @@
     <!-- ============================================================================ -->
     <!-- MAIN APPLICATION SCRIPT -->
     <!-- ============================================================================ -->
-    <script src="/terminal.js"></script>
+    <script src="/js/terminal.js"></script>
 </body>
 </html>
