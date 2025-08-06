@@ -91,10 +91,11 @@ PorTTY follows a clean, modular architecture with clear separation of concerns:
 ### 7. Frontend (`cmd/portty/assets/`)
 - **Components**:
   - `index.html`: PWA-enabled HTML structure with meta tags
-  - `terminal.css`: Centralized styling using CSS custom properties
-  - `terminal.js`: Enhanced WebSocket client with consolidated connection management
+  - `css/terminal.css`: Centralized styling using CSS custom properties
+  - `js/terminal.js`: Enhanced WebSocket client with consolidated connection management
+  - `js/sw.js`: Service worker for offline caching and PWA functionality
   - `manifest.json`: PWA manifest for app installation
-  - `sw.js`: Service worker for offline caching and PWA functionality
+  - `icons/`: Theme-based icon system with light and dark variants
 - **Key Features**:
   - Progressive Web App capabilities with installation prompts
   - Auto-reconnection with exponential backoff
@@ -102,6 +103,7 @@ PorTTY follows a clean, modular architecture with clear separation of concerns:
   - Responsive terminal sizing
   - Performance-optimized xterm.js configuration
   - Centralized theming with CSS custom properties
+  - Organized asset structure with dedicated directories
 
 ## Data Flow
 
@@ -171,13 +173,18 @@ PorTTY follows a clean, modular architecture with clear separation of concerns:
 PorTTY/
 ├── cmd/portty/
 │   ├── main.go              # Interface-based main application entry
-│   └── assets/              # Embedded web assets
+│   └── assets/              # Embedded web assets (organized structure)
 │       ├── index.html       # PWA-enabled HTML structure
-│       ├── terminal.css     # Centralized styling with CSS custom properties
-│       ├── terminal.js      # Enhanced WebSocket client with connection management
 │       ├── manifest.json    # PWA manifest for app installation
-│       ├── sw.js            # Service worker for offline caching
-│       └── icon.svg         # Application icon (SVG)
+│       ├── icon.svg         # Legacy application icon (SVG)
+│       ├── css/             # Stylesheets directory
+│       │   └── terminal.css # Centralized styling with CSS custom properties
+│       ├── js/              # JavaScript files directory
+│       │   ├── terminal.js  # Enhanced WebSocket client with connection management
+│       │   └── sw.js        # Service worker for offline caching
+│       └── icons/           # Theme-based icons directory
+│           ├── light-theme-icon.svg  # Black icon for light backgrounds
+│           └── dark-theme-icon.svg   # White icon for dark backgrounds
 ├── internal/
 │   ├── config/              # Centralized configuration management
 │   │   └── config.go

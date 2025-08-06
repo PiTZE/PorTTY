@@ -197,6 +197,16 @@ location / {
 - Section headers with descriptive comments in ALL CAPS
 
 ### Frontend Code Organization (v0.2+)
+- **Organized Asset Structure**: Dedicated directories for different asset types
+  ```
+  cmd/portty/assets/
+  ├── css/terminal.css         # Centralized styling
+  ├── js/terminal.js           # WebSocket client logic
+  ├── js/sw.js                 # Service worker
+  └── icons/                   # Theme-based icon system
+      ├── light-theme-icon.svg # Black icon for light backgrounds
+      └── dark-theme-icon.svg  # White icon for dark backgrounds
+  ```
 - **CSS Custom Properties**: Centralized theming configuration using CSS variables
   ```css
   :root {
@@ -210,6 +220,7 @@ location / {
 - **DRY Principles**: Eliminate code duplication between CSS and JavaScript
 - **Single Responsibility**: Each file/class has one clear purpose
 - **Consistent Font Usage**: JetBrains Mono standardized across entire application
+- **Theme-Based Icons**: Separate icons for light and dark theme compatibility
 
 ### Coding Philosophy
 - **Minimal Commenting**: Function-level documentation only, self-documenting code through clear naming

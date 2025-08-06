@@ -18,6 +18,20 @@
   - Comprehensive interface definitions (`internal/interfaces/interfaces.go`)
   - Factory patterns for testable component creation
 
+- **PWA Loading Spinner Fix (Latest)**:
+  - Fixed invalid SVG screenshot in manifest.json containing `<txt>` elements instead of `<text>` elements
+  - Removed duplicate PWA installation handlers causing user gesture conflicts
+  - Corrected base64-encoded SVG screenshot for proper PWA installation preview
+  - Eliminated loading spinner issue in PWA installation dialog
+
+- **Asset Reorganization (Latest)**:
+  - Created organized directory structure: `css/`, `js/`, and `icons/` subdirectories
+  - Moved `terminal.css` to `cmd/portty/assets/css/terminal.css`
+  - Moved `terminal.js` and `sw.js` to `cmd/portty/assets/js/` directory
+  - Created theme-based icon system with `light-theme-icon.svg` and `dark-theme-icon.svg`
+  - Updated all file references in `index.html`, `sw.js`, and `manifest.json`
+  - Cleaned up temporary and duplicate files for better maintainability
+
 - **Style Guide Compliance**:
   - Updated version from v0.1 to v0.2 across all files
   - Added missing Go doc comments for exported functions
