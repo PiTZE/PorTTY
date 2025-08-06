@@ -196,14 +196,31 @@ location / {
   6. Main execution logic
 - Section headers with descriptive comments in ALL CAPS
 
+### Frontend Code Organization (v0.2+)
+- **CSS Custom Properties**: Centralized theming configuration using CSS variables
+  ```css
+  :root {
+      --font-family: 'JetBrains Mono', monospace;
+      --font-size: 14px;
+      --background-color: #000000;
+      --foreground-color: #f0f0f0;
+  }
+  ```
+- **JavaScript Classes**: Object-oriented approach for complex functionality (e.g., ConnectionStatusManager)
+- **DRY Principles**: Eliminate code duplication between CSS and JavaScript
+- **Single Responsibility**: Each file/class has one clear purpose
+- **Consistent Font Usage**: JetBrains Mono standardized across entire application
+
 ### Coding Philosophy
 - **Minimal Commenting**: Function-level documentation only, self-documenting code through clear naming
 - **Naming Conventions**: Standard Go conventions (PascalCase for exported, camelCase for unexported)
 - **Error Handling**: Consistent patterns using `log.Printf()`, `log.Fatalf()` with context wrapping via `fmt.Errorf()` with `%w` verb
 - **Visual Consistency**: Uniform logging patterns and error message formats across components
+- **Configuration Centralization**: Use CSS custom properties and constants to avoid hardcoded values
 
 ### Project-Specific Standards
 - **WebSocket Handling**: Consistent connection lifecycle management patterns
 - **PTY Management**: Standardized terminal session handling approaches
 - **Configuration**: Constants for default values and configuration management
 - **Testing**: Go testing conventions with `_test.go` files and proper test organization
+- **PWA Standards**: Service worker caching, manifest configuration, and offline-first approach

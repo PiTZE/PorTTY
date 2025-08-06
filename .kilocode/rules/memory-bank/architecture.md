@@ -59,13 +59,18 @@ PorTTY follows a clean, modular architecture with clear separation of concerns:
 
 ### 4. Frontend (`cmd/portty/assets/`)
 - **Components**:
-  - `index.html`: Minimal HTML structure
-  - `terminal.css`: Terminal styling and layout
-  - `terminal.js`: WebSocket client and xterm.js integration
+  - `index.html`: PWA-enabled HTML structure with meta tags
+  - `terminal.css`: Centralized styling using CSS custom properties
+  - `terminal.js`: Enhanced WebSocket client with consolidated connection management
+  - `manifest.json`: PWA manifest for app installation
+  - `sw.js`: Service worker for offline caching and PWA functionality
 - **Key Features**:
+  - Progressive Web App capabilities with installation prompts
   - Auto-reconnection with exponential backoff
+  - Consolidated connection status management
   - Responsive terminal sizing
   - Performance-optimized xterm.js configuration
+  - Centralized theming with CSS custom properties
 
 ## Data Flow
 
@@ -113,9 +118,12 @@ PorTTY/
 ├── cmd/portty/
 │   ├── main.go              # Main application entry
 │   └── assets/              # Embedded web assets
-│       ├── index.html       # Frontend HTML
-│       ├── terminal.css     # Terminal styling
-│       └── terminal.js      # Client-side logic
+│       ├── index.html       # PWA-enabled HTML structure
+│       ├── terminal.css     # Centralized styling with CSS custom properties
+│       ├── terminal.js      # Enhanced WebSocket client with connection management
+│       ├── manifest.json    # PWA manifest for app installation
+│       ├── sw.js            # Service worker for offline caching
+│       └── favicon.ico      # Application icon
 ├── internal/
 │   ├── ptybridge/           # PTY and tmux management
 │   │   └── ptybridge.go
@@ -124,7 +132,8 @@ PorTTY/
 ├── build.sh                 # Build script
 ├── install.sh               # Installation script
 ├── go.mod                   # Go module definition
-└── go.sum                   # Dependency checksums
+├── go.sum                   # Dependency checksums
+└── PWA_ARCHITECTURE.md      # PWA implementation documentation
 ```
 
 ## Development Standards
