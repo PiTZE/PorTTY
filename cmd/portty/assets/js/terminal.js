@@ -11,6 +11,11 @@ const RESIZE_DEBOUNCE_DELAY = 100;
 // UTILITY FUNCTIONS
 // ============================================================================
 
+function isRunningOnLocalhost() {
+    const hostname = window.location.hostname;
+    return ['localhost', '127.0.0.1', '::1'].includes(hostname);
+}
+
 function getThemeFromCSS() {
     const rootStyles = getComputedStyle(document.documentElement);
     return {
@@ -50,11 +55,18 @@ class ConnectionStatusManager {
         this.statusIndicator = document.getElementById('status-indicator');
         this.statusText = document.getElementById('status-text');
         this.connectionStatus = document.getElementById('connection-status');
+        this.isLocalhost = isRunningOnLocalhost();
         this.initialize();
     }
     
     initialize() {
         console.log('[PorTTY] Initializing connection status, element found:', !!this.connectionStatus);
+        
+        if (this.isLocalhost) {
+            console.log('[PorTTY] Running on localhost - hiding connection status');
+            this.hideConnectionStatus();
+            return;
+        }
         
         if (this.connectionStatus) {
             this.makeVisible();
@@ -68,7 +80,7 @@ class ConnectionStatusManager {
     }
     
     makeVisible() {
-        if (this.connectionStatus) {
+        if (this.connectionStatus && !this.isLocalhost) {
             this.connectionStatus.classList.remove('hidden');
             this.connectionStatus.style.display = 'flex';
             this.connectionStatus.style.visibility = 'visible';
@@ -76,7 +88,19 @@ class ConnectionStatusManager {
         }
     }
     
+    hideConnectionStatus() {
+        if (this.connectionStatus) {
+            this.connectionStatus.style.display = 'none';
+            this.connectionStatus.style.visibility = 'hidden';
+            this.connectionStatus.classList.add('hidden');
+        }
+    }
+    
     updateStatus(status) {
+        if (this.isLocalhost) {
+            return;
+        }
+        
         this.makeVisible();
         
         if (this.statusIndicator && this.statusText) {
@@ -96,6 +120,10 @@ class ConnectionStatusManager {
     }
     
     ensureVisibilityFallback() {
+        if (this.isLocalhost) {
+            return;
+        }
+        
         setTimeout(() => {
             if (this.connectionStatus && this.connectionStatus.style.display === 'none') {
                 console.log('[PorTTY] Fallback: Making connection status visible');
@@ -275,7 +303,7 @@ function setupEventListeners(term, fitAddon, socket) {
 
 function setupConnectionInfo(socket, reconnectAttempts, term) {
     const connectionInfoBtn = document.getElementById('offline-mode-btn');
-    if (connectionInfoBtn) {
+    if (connectionInfoBtn && !isRunningOnLocalhost()) {
         connectionInfoBtn.addEventListener('click', () => {
             const info = {
                 status: socket ? socket.readyState : 'No socket',
