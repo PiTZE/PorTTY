@@ -105,6 +105,12 @@ PorTTY follows a clean, modular architecture with clear separation of concerns:
   - Performance-optimized xterm.js configuration with proper addon timing
   - Centralized theming with CSS custom properties
   - Organized asset structure with dedicated directories
+  - Comprehensive xterm.js addon integration (8 addons)
+  - Smart renderer selection (WebGL for desktop, Canvas for mobile)
+  - Advanced search functionality with overlay UI
+  - Font size management with keyboard shortcuts
+  - Mobile device detection and optimization
+  - WebGL context loss handling for production stability
 
 ## Data Flow
 

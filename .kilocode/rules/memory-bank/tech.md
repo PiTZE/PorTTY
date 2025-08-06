@@ -11,11 +11,16 @@
 
 ### Frontend
 - **Terminal Emulator**: xterm.js v5.5.0 (CDN)
-- **Addons**:
+- **Addons** (8 comprehensive addons):
   - xterm-addon-fit v0.10.0 (terminal sizing)
   - xterm-addon-attach v0.11.0 (WebSocket attachment)
-- **Styling**: Custom CSS with JetBrains Mono font
-- **JavaScript**: Vanilla JS (no framework dependencies)
+  - xterm-addon-webgl v0.18.0 (hardware acceleration)
+  - xterm-addon-search v0.15.0 (search functionality)
+  - xterm-addon-unicode11 v0.8.0 (Unicode 11 support)
+  - xterm-addon-web-links v0.11.0 (clickable web links)
+  - xterm-addon-clipboard v0.1.0 (clipboard operations)
+- **Styling**: Custom CSS with JetBrains Mono font and CSS custom properties
+- **JavaScript**: Vanilla JS with ES6+ features (no framework dependencies)
 
 ### System Dependencies
 - **tmux**: Required for session management
@@ -158,9 +163,14 @@ github.com/gorilla/websocket v1.2.0
    - Efficient error recovery
 
 3. **Frontend Optimizations**:
-   - Canvas renderer for performance
-   - Debounced resize events
-   - Minimal DOM manipulation
+   - Smart renderer selection (WebGL for desktop, Canvas for mobile)
+   - WebGL hardware acceleration with context loss handling
+   - Instant resize response without debouncing
+   - Mobile device detection for optimal performance
+   - Comprehensive addon integration for advanced features
+   - Font size management with keyboard shortcuts
+   - Advanced search overlay with keyboard navigation
+   - Minimal DOM manipulation with efficient event handling
 
 ## Security Considerations
 
