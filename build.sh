@@ -49,8 +49,8 @@ vet_go_code() {
 
 setup_build_directories() {
     echo "Setting up build directories..."
-    mkdir -p build/bin build/tar
-    echo "Build directories created: build/bin, build/tar"
+    mkdir -p build/bin build/release
+    echo "Build directories created: build/bin, build/release"
 }
 
 build_binary_for_platform() {
@@ -123,7 +123,6 @@ build_single_binary() {
     local binary_name="portty"
     local output_path="build/bin/portty"
     
-    # Add .exe extension for Windows
     if [ "$os" = "windows" ]; then
         binary_name="portty.exe"
         output_path="build/bin/portty.exe"
@@ -133,8 +132,6 @@ build_single_binary() {
     
     if [ -f "${output_path}" ]; then
         echo "✓ Built portty for ${os}/${arch}: ${output_path}"
-        
-        # Also create a symlink in root for backward compatibility
         if [ "$os" != "windows" ]; then
             ln -sf "${output_path}" portty
             echo "✓ Created symlink: portty -> ${output_path}"
@@ -165,7 +162,7 @@ create_release_archives() {
             platform_info=${platform_info%.exe}
             
             local archive_name="portty-${VERSION}-${platform_info}.tar.gz"
-            local archive_path="build/tar/${archive_name}"
+            local archive_path="build/release/${archive_name}"
             
             echo "Creating archive: $archive_name"
             
@@ -182,7 +179,7 @@ create_release_archives() {
             
             # Create SHA256 checksum
             echo "Creating SHA256 checksum"
-            (cd build/tar && sha256sum "$archive_name" > "${archive_name}.sha256")
+            (cd build/release && sha256sum "$archive_name" > "${archive_name}.sha256")
             
             echo "✓ Release artifact created: $archive_path"
             archive_count=$((archive_count + 1))
@@ -194,7 +191,7 @@ create_release_archives() {
         local os=$(go env GOOS)
         local arch=$(go env GOARCH)
         local archive_name="portty-${VERSION}-${os}-${arch}.tar.gz"
-        local archive_path="build/tar/${archive_name}"
+        local archive_path="build/release/${archive_name}"
         
         echo "Creating archive for current platform: $archive_name"
         
@@ -204,19 +201,19 @@ create_release_archives() {
         rm -rf "$temp_dir"
         
         echo "Creating SHA256 checksum"
-        (cd build/tar && sha256sum "$archive_name" > "${archive_name}.sha256")
+        (cd build/release && sha256sum "$archive_name" > "${archive_name}.sha256")
         
         echo "✓ Release artifact created: $archive_path"
         archive_count=$((archive_count + 1))
     fi
     
-    echo "Created $archive_count release archives in: build/tar/"
+    echo "Created $archive_count release archives in: build/release/"
     
     # Create a combined checksums file
     if [ $archive_count -gt 0 ]; then
         echo "Creating combined checksums file..."
-        (cd build/tar && cat *.sha256 > checksums.txt)
-        echo "✓ Combined checksums: build/tar/checksums.txt"
+        (cd build/release && cat *.sha256 > checksums.txt)
+        echo "✓ Combined checksums: build/release/checksums.txt"
     fi
 }
 
