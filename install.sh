@@ -2184,14 +2184,31 @@ select_installation_mode() {
     install_mode=${install_mode:-1}
     
     if [ "$install_mode" = "2" ]; then
+        # Check if running as root - user installation not recommended for root
+        if [ "$EUID" -eq 0 ]; then
+            echo -e "${YELLOW}Warning: User installation as root is not recommended${NC}"
+            echo "This will create service files in /root/.config/systemd/user/ which may cause conflicts"
+            echo "Consider using system installation instead"
+            read -p "Continue with user installation anyway? [y/N]: " continue_user
+            if [[ ! "$continue_user" =~ ^[Yy]$ ]]; then
+                echo "Switching to system installation mode"
+                USER_INSTALL=false
+                setup_installation_paths
+                echo "System installation mode selected"
+                return 0
+            fi
+        fi
+        
         USER_INSTALL=true
         setup_installation_paths
         echo "User installation mode selected"
+        log_debug "User install paths: SERVICE_FILE=$SERVICE_FILE, INSTALL_DIR=$INSTALL_DIR"
         return 0
     else
         USER_INSTALL=false
         setup_installation_paths
         echo "System installation mode selected"
+        log_debug "System install paths: SERVICE_FILE=$SERVICE_FILE, INSTALL_DIR=$INSTALL_DIR"
         if [ "$EUID" -ne 0 ]; then
             echo -e "${RED}Error: System installation requires root privileges${NC}"
             echo "Please run with sudo or choose user installation mode"
