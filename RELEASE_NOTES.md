@@ -1,6 +1,6 @@
-# PorTTY v0.2 Release Notes
+# PorTTY v0.2+ Release Notes
 
-This release transforms PorTTY into a Progressive Web App (PWA) with enhanced user experience, comprehensive architecture improvements, dual shell mode support, and Nerd Font integration for perfect terminal rendering.
+This release transforms PorTTY into a Progressive Web App (PWA) with enhanced user experience, comprehensive architecture improvements, dual shell mode support, Nerd Font integration for perfect terminal rendering, and world-class CLI tools with professional installation system.
 
 ## New Features
 
@@ -44,6 +44,63 @@ This release transforms PorTTY into a Progressive Web App (PWA) with enhanced us
 - **Connection Status Visibility** - Always-visible connection status with fallback mechanisms
 - **PWA Installation Banner** - Non-intrusive installation prompts
 - **Mobile-Optimized** - Better responsive design for mobile devices
+
+## Professional CLI Tools & Installation System
+
+### Enhanced Installation Script
+- **Complete Feature Parity** - Interactive and command-line modes offer identical functionality
+- **Professional User Experience** - Colored output with ANSI formatting (red errors, yellow warnings, green success)
+- **Comprehensive Input Validation** - Port range checking (1-65535), interface validation, directory verification
+- **Smart Privilege Handling** - Interactive mode entry without requiring root upfront
+- **Robust Download System** - Support for compressed GitHub release archives with proper extraction
+- **Enhanced Error Handling** - Context-aware error messages with actionable recovery suggestions
+- **Interactive Menu System** - Intuitive menus for installation mode, shell mode, and service management
+- **Production-Ready Quality** - Enterprise-grade installer suitable for professional deployment
+
+### Enhanced PorTTY Binary CLI
+- **Professional Argument Parsing** - Comprehensive flag support with both short (`-p`) and long (`--port`) formats
+- **Multi-Level Help System** - Detailed documentation with examples and troubleshooting guidance
+- **Input Validation** - Address, port, and interface validation with contextual error messages
+- **Colored Output System** - Consistent ANSI color formatting matching installation script standards
+- **Enhanced Error Handling** - Context-aware errors with specific recovery suggestions
+- **Standard CLI Conventions** - Modern CLI design following established patterns
+
+### Installation Script Features
+- **Dual Installation Modes** - System installation (requires sudo) and user installation (no root needed)
+- **Shell Mode Selection** - Choose between default shell mode and tmux mode during installation
+- **Network Configuration** - Interface and port configuration with validation
+- **Advanced Options** - Checksum verification, force updates, verbose logging, debug mode
+- **Service Management** - Complete systemd service lifecycle management
+- **Comprehensive Status Checking** - Detailed system information and service status reporting
+- **Log Management** - Centralized logging with fallback directories and proper permissions
+
+### PorTTY Binary Features
+- **Enhanced Run Command** - `-a/--address`, `-i/--interface`, `-p/--port`, `--tmux`, `--verbose`, `--debug` options
+- **Improved Stop Command** - Verbose and debug options for detailed shutdown logging
+- **Global Options** - `-h/--help`, `-v/--version` work at any command level
+- **Input Validation** - Port range validation with privilege warnings, interface format checking
+- **Professional Help Documentation** - Multi-level help with examples and security guidance
+
+### CLI Usage Examples
+```bash
+# Enhanced installer usage
+./install.sh install --user --tmux -i localhost -p 8080 --verbose
+./install.sh status --user
+./install.sh logs --user
+
+# Enhanced PorTTY binary usage
+./portty run -i localhost -p 8080 --tmux --verbose
+./portty run -a 0.0.0.0:7314 --debug
+./portty stop --verbose
+./portty --help
+./portty run --help
+```
+
+### Code Quality & Standards
+- **Minimal Commenting Philosophy** - Self-documenting code with clear naming conventions
+- **Consistent Organization** - Proper section dividers and structured file organization
+- **Professional Error Messages** - Clear problem identification with actionable solutions
+- **Unified User Experience** - Consistent behavior and formatting across all tools
 
 ## Architecture Improvements
 
@@ -115,11 +172,39 @@ This release transforms PorTTY into a Progressive Web App (PWA) with enhanced us
 
 ## Installation
 
-### Quick Install
+### Enhanced Installation Options
 
+#### System Installation (Default)
 ```bash
+# Interactive installation with menus
+sudo ./install.sh
+
+# Non-interactive with options
+sudo ./install.sh install --tmux -i 0.0.0.0 -p 7314 --verbose
+
+# Quick install from web
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/PiTZE/PorTTY/master/install.sh)"
 ```
+
+#### User Installation (No Root Required)
+```bash
+# Interactive user installation
+./install.sh
+
+# Non-interactive user installation
+./install.sh install --user --tmux -i localhost -p 8080
+
+# User installation with custom directory
+./install.sh install --user -d ~/.local/bin --tmux
+```
+
+#### Installation Features
+- **Dual Mode Support** - System-wide or user-local installation
+- **Shell Mode Selection** - Choose default shell or tmux mode during installation
+- **Network Configuration** - Configure interface and port with validation
+- **Service Management** - Automatic systemd service creation and management
+- **Comprehensive Validation** - Input validation with clear error messages
+- **Recovery Guidance** - Detailed error messages with actionable solutions
 
 Then access your terminal at: http://your-server-ip:7314
 
@@ -141,11 +226,17 @@ Then access your terminal at: http://your-server-ip:7314
 - `PWA_ARCHITECTURE.md` - PWA implementation documentation
 
 ### Enhanced Existing Files
-- `cmd/portty/main.go` - Now uses interface-based architecture with dependency injection
+- `cmd/portty/main.go` - Now uses interface-based architecture with dependency injection and professional CLI argument system
 - `internal/websocket/websocket.go` - Refactored to use interfaces and structured logging
 - `internal/ptybridge/ptybridge.go` - Enhanced with context propagation and interface compliance
+- `install.sh` - Completely rewritten with professional CLI features, feature parity, and comprehensive error handling
 
 ## Breaking Changes
+
+### CLI Changes
+- **PorTTY Binary** - Enhanced argument parsing with stricter validation (old positional arguments deprecated)
+- **Installation Script** - Complete rewrite with new interactive menus and command structure
+- **Error Handling** - More detailed error messages may affect automated scripts expecting specific formats
 
 ### Frontend Changes
 - Removed `connection-manager.js` (functionality moved to `terminal.js`)
@@ -161,6 +252,8 @@ Then access your terminal at: http://your-server-ip:7314
 - Existing installations will continue to work without changes
 - Custom integrations may need updates to use new interfaces
 - Log parsing tools may need updates for new structured format
+- Scripts using old PorTTY binary syntax should migrate to explicit flags
+- Installation automation should use new command-line flags instead of interactive mode
 
 ## Known Issues
 
@@ -174,12 +267,24 @@ Then access your terminal at: http://your-server-ip:7314
 - **Clear Contracts** - Interfaces define clear contracts between components
 - **Easier Mocking** - Interfaces can be easily mocked for testing
 - **Modular Development** - Components can be developed and tested independently
+- **Professional CLI Standards** - Both installer and binary follow modern CLI conventions
+- **Self-Documenting Code** - Minimal commenting philosophy with clear naming conventions
 
 ### For Maintainers
 - **Structured Logging** - Better debugging and monitoring capabilities
 - **Configuration Management** - Centralized configuration reduces errors
 - **Graceful Shutdown** - Proper resource cleanup prevents issues
 - **Error Handling** - Consistent error handling patterns across components
+- **Professional Installation Experience** - Enterprise-grade installer reduces support burden
+- **Comprehensive Validation** - Input validation prevents common configuration errors
+- **Unified User Experience** - Consistent behavior across all CLI tools
+
+### For Users
+- **Intuitive Installation** - Professional installer with clear guidance and error recovery
+- **Flexible Deployment Options** - System-wide or user-local installation modes
+- **Comprehensive Help System** - Multi-level documentation with examples and troubleshooting
+- **Professional CLI Experience** - Modern argument parsing with validation and colored output
+- **Error Recovery Guidance** - Clear error messages with actionable solutions
 
 ## Acknowledgements
 
