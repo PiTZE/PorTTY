@@ -207,7 +207,7 @@ PorTTY/
 │   │   └── ptybridge.go
 │   └── websocket/           # Interface-based WebSocket handling
 │       └── websocket.go
-├── build.sh                 # Build script
+├── build.sh                 # Build script (outputs to dist/)
 ├── install.sh               # Installation script
 ├── go.mod                   # Go module definition
 ├── go.sum                   # Dependency checksums

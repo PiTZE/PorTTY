@@ -113,8 +113,8 @@ This document contains step-by-step instructions for common maintenance and deve
 
 5. Build release artifacts:
    ```bash
-   ./build.sh
-   # This creates platform-specific archives
+   ./build.sh release
+   # This creates platform-specific archives in dist/release/
    ```
 
 6. Create GitHub release:
@@ -260,7 +260,7 @@ This document contains step-by-step instructions for common maintenance and deve
 **Last performed:** Daily development task
 **Files involved:**
 - `/build.sh` - Build script
-- `/portty` - Generated binary (symlink to build/bin/portty)
+- `/portty` - Generated binary (symlink to dist/bin/portty)
 
 **Steps:**
 1. Build for current platform:
@@ -297,7 +297,7 @@ This document contains step-by-step instructions for common maintenance and deve
    ```
 
 **Important notes:**
-- Build outputs go to `build/bin/` (binaries) and `build/release/` (archives)
+- Build outputs go to `dist/bin/` (binaries) and `dist/release/` (archives)
 - Default port is 7314
 - Access via browser at http://localhost:7314
 - Use `./portty help` for all available commands
