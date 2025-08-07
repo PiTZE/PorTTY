@@ -1,10 +1,3 @@
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-
 # Project specific binaries
 /portty
 portty
@@ -30,15 +23,6 @@ go.work
 *.swo
 *~
 
-# OS specific files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
 # Log files
 *.log
 server.log
@@ -47,27 +31,9 @@ server.log
 tmp/
 temp/
 
-# Downloaded Go distributions
-go*.tar.gz
-
-# Release archives
-*.tar.gz
-*.tar.gz.sha256
-
 # Build artifacts
-/dist/
-/bin/
 /build/
 
 # Specific to this project
 !cmd/portty/
 !cmd/portty/**
-lost+found/
-
-# Node.js dependencies (if used for frontend development)
-node_modules/
-npm-debug.log
-yarn-debug.log
-yarn-error.log
-package-lock.json
-yarn.lock
