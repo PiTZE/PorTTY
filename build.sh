@@ -105,7 +105,7 @@ build_all_binaries() {
     for platform in "${platforms[@]}"; do
         read -r os arch <<< "$platform"
         if build_binary_for_platform "$os" "$arch"; then
-            ((build_count++))
+            build_count=$((build_count + 1))
         fi
     done
     
@@ -185,7 +185,7 @@ create_release_archives() {
             (cd build/tar && sha256sum "$archive_name" > "${archive_name}.sha256")
             
             echo "✓ Release artifact created: $archive_path"
-            ((archive_count++))
+            archive_count=$((archive_count + 1))
         fi
     done
     
@@ -207,7 +207,7 @@ create_release_archives() {
         (cd build/tar && sha256sum "$archive_name" > "${archive_name}.sha256")
         
         echo "✓ Release artifact created: $archive_path"
-        ((archive_count++))
+        archive_count=$((archive_count + 1))
     fi
     
     echo "Created $archive_count release archives in: build/tar/"

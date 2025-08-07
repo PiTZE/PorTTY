@@ -57,6 +57,7 @@ go*.tar.gz
 # Build artifacts
 /dist/
 /bin/
+/build/
 
 # Specific to this project
 !cmd/portty/
