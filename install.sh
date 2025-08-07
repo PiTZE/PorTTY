@@ -337,20 +337,32 @@ ensure_directories() {
     local fallback_log_dir=""
     local error_context=""
     
-    if [ -w "$(dirname "$LOG_DIR")" ] || mkdir -p "$LOG_DIR" 2>/dev/null; then
-        if [ -w "$LOG_DIR" ]; then
-            log_dir_created=true
-        else
-            error_context="Default log directory exists but is not writable: $LOG_DIR"
-        fi
+    # First, try to create the configured log directory with full path
+    if mkdir -p "$LOG_DIR" 2>/dev/null && [ -w "$LOG_DIR" ]; then
+        log_dir_created=true
     else
-        error_context="Cannot create or access default log directory: $LOG_DIR"
+        error_context="Cannot create or access configured log directory: $LOG_DIR"
+        
+        # For user installations, try to create parent directories step by step
+        if [ "$USER_INSTALL" = true ]; then
+            local parent_dir
+            parent_dir=$(dirname "$LOG_DIR")
+            if [ ! -d "$parent_dir" ]; then
+                if mkdir -p "$parent_dir" 2>/dev/null; then
+                    if mkdir -p "$LOG_DIR" 2>/dev/null && [ -w "$LOG_DIR" ]; then
+                        log_dir_created=true
+                        error_context=""
+                    fi
+                fi
+            fi
+        fi
     fi
     
+    # First fallback: user home directory
     if [ "$log_dir_created" = false ]; then
         if [ -n "$HOME" ] && [ -w "$HOME" ]; then
             fallback_log_dir="$HOME/.portty/logs"
-            if mkdir -p "$fallback_log_dir" 2>/dev/null; then
+            if mkdir -p "$fallback_log_dir" 2>/dev/null && [ -w "$fallback_log_dir" ]; then
                 LOG_DIR="$fallback_log_dir"
                 INSTALL_LOG="$LOG_DIR/install.log"
                 RUNTIME_LOG="$LOG_DIR/portty.log"
@@ -364,9 +376,10 @@ ensure_directories() {
         fi
     fi
     
+    # Second fallback: temporary directory
     if [ "$log_dir_created" = false ]; then
         fallback_log_dir="/tmp/portty-logs-$$"
-        if mkdir -p "$fallback_log_dir" 2>/dev/null; then
+        if mkdir -p "$fallback_log_dir" 2>/dev/null && [ -w "$fallback_log_dir" ]; then
             LOG_DIR="$fallback_log_dir"
             INSTALL_LOG="$LOG_DIR/install.log"
             RUNTIME_LOG="$LOG_DIR/portty.log"
@@ -377,6 +390,20 @@ ensure_directories() {
         fi
     fi
     
+    # Final fallback: current directory
+    if [ "$log_dir_created" = false ]; then
+        fallback_log_dir="./portty-logs"
+        if mkdir -p "$fallback_log_dir" 2>/dev/null && [ -w "$fallback_log_dir" ]; then
+            LOG_DIR="$fallback_log_dir"
+            INSTALL_LOG="$LOG_DIR/install.log"
+            RUNTIME_LOG="$LOG_DIR/portty.log"
+            log_dir_created=true
+            echo "Warning: Using current directory for logs: $LOG_DIR" >&2
+        else
+            error_context="$error_context; Cannot create log directory in current directory: $fallback_log_dir"
+        fi
+    fi
+    
     if [ "$log_dir_created" = false ]; then
         echo "Error: Could not create any log directory." >&2
         echo "Context: $error_context" >&2
@@ -384,14 +411,18 @@ ensure_directories() {
         return 1
     fi
     
+    # Try to create log files
     if ! touch "$RUNTIME_LOG" "$INSTALL_LOG" 2>/dev/null; then
         echo "Warning: Could not create log files in $LOG_DIR" >&2
         echo "Suggestion: Check directory permissions: ls -la $LOG_DIR" >&2
-        return 1
+        # Don't return error here - directory creation succeeded, file creation might work later
     fi
     
     if [ "$VERBOSE" = true ]; then
-        echo "Info: Log files created: $RUNTIME_LOG, $INSTALL_LOG" >&2
+        echo "Info: Log directory ready: $LOG_DIR" >&2
+        if [ -f "$RUNTIME_LOG" ] && [ -f "$INSTALL_LOG" ]; then
+            echo "Info: Log files created: $RUNTIME_LOG, $INSTALL_LOG" >&2
+        fi
     fi
     
     return 0
@@ -893,28 +924,58 @@ get_latest_version() {
     local fallback_version="v0.2"
     local timeout=10
     
-    log_debug "Attempting to fetch latest version from GitHub API..."
+    # Suppress all debug output during version detection to prevent contamination
+    local original_log_level="$CURRENT_LOG_LEVEL"
+    CURRENT_LOG_LEVEL="$LOG_LEVEL_WARNING"
     
-    local latest_version
-    if command -v curl &> /dev/null; then
-        latest_version=$(curl -s --connect-timeout "$timeout" --max-time "$timeout" "$api_url" 2>/dev/null | \
-            grep '"tag_name":' | \
-            sed -E 's/.*"tag_name":[[:space:]]*"([^"]+)".*/\1/')
-    elif command -v wget &> /dev/null; then
-        latest_version=$(wget -q --timeout="$timeout" -O - "$api_url" 2>/dev/null | \
-            grep '"tag_name":' | \
-            sed -E 's/.*"tag_name":[[:space:]]*"([^"]+)".*/\1/')
+    local latest_version=""
+    
+    if command -v curl >/dev/null 2>&1; then
+        # Use a temporary file to avoid any output contamination
+        local temp_file
+        if command -v mktemp >/dev/null 2>&1; then
+            temp_file=$(mktemp -t "portty.version.XXXXXX" 2>/dev/null)
+        else
+            temp_file="/tmp/portty.version.tmp.$$"
+        fi
+        
+        if [ -n "$temp_file" ] && curl -s --connect-timeout "$timeout" --max-time "$timeout" "$api_url" -o "$temp_file" 2>/dev/null; then
+            latest_version=$(grep '"tag_name":' "$temp_file" 2>/dev/null | head -1 | sed -E 's/.*"tag_name":[[:space:]]*"([^"]+)".*/\1/' 2>/dev/null | tr -d '[:space:]' | tr -d '[:cntrl:]')
+        fi
+        
+        # Clean up temp file
+        [ -n "$temp_file" ] && rm -f "$temp_file" 2>/dev/null || true
+        
+    elif command -v wget >/dev/null 2>&1; then
+        # Use a temporary file to avoid any output contamination
+        local temp_file
+        if command -v mktemp >/dev/null 2>&1; then
+            temp_file=$(mktemp -t "portty.version.XXXXXX" 2>/dev/null)
+        else
+            temp_file="/tmp/portty.version.tmp.$$"
+        fi
+        
+        if [ -n "$temp_file" ] && wget -q --timeout="$timeout" -O "$temp_file" "$api_url" 2>/dev/null; then
+            latest_version=$(grep '"tag_name":' "$temp_file" 2>/dev/null | head -1 | sed -E 's/.*"tag_name":[[:space:]]*"([^"]+)".*/\1/' 2>/dev/null | tr -d '[:space:]' | tr -d '[:cntrl:]')
+        fi
+        
+        # Clean up temp file
+        [ -n "$temp_file" ] && rm -f "$temp_file" 2>/dev/null || true
+        
     else
-        log_warning "Neither curl nor wget found. Using fallback version."
+        # Restore log level before outputting warning
+        CURRENT_LOG_LEVEL="$original_log_level"
         echo "$fallback_version"
         return 0
     fi
     
+    # Restore original log level
+    CURRENT_LOG_LEVEL="$original_log_level"
+    
+    # Validate the version string
     if [[ -n "$latest_version" && "$latest_version" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?(-.*)?$ ]]; then
-        log_debug "Successfully detected latest version: $latest_version"
         echo "$latest_version"
     else
-        log_warning "Failed to detect latest version or invalid format. Using fallback version: $fallback_version"
         echo "$fallback_version"
     fi
 }
