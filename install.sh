@@ -949,9 +949,9 @@ verify_checksum() {
     local checksums_url="https://github.com/PiTZE/PorTTY/releases/download/${version}/checksums.txt"
     local checksums_file
     if command -v mktemp >/dev/null 2>&1; then
-        checksums_file=$(mktemp "${binary_file}.checksums.XXXXXX")
+        checksums_file=$(mktemp -t "portty.checksums.XXXXXX")
     else
-        checksums_file="${binary_file}.checksums.tmp.$$"
+        checksums_file="/tmp/portty.checksums.tmp.$$"
     fi
     
     TMP_FILES="$TMP_FILES $checksums_file"
@@ -1058,6 +1058,14 @@ download_binary() {
         mkdir -p "$temp_extract_dir"
     fi
     
+    if [ ! -w "$(dirname "$temp_archive")" ]; then
+        log_install_error "Cannot write to temporary directory: $(dirname "$temp_archive")"
+        log_install "Falling back to /tmp for temporary files"
+        temp_archive="/tmp/portty.archive.tmp.$$"
+        temp_extract_dir="/tmp/portty.extract.tmp.$$"
+        mkdir -p "$temp_extract_dir"
+    fi
+    
     TMP_FILES="$TMP_FILES $temp_archive $temp_extract_dir"
     
     local max_attempts=3
@@ -1065,7 +1073,6 @@ download_binary() {
     local download_success=false
     local last_error=""
     
-    # Enhanced download function with better error reporting for .tar.gz archives
     download_with_retry() {
         local url="$1"
         local archive_name="$2"
@@ -1085,7 +1092,6 @@ download_binary() {
                 local curl_exit_code=$?
                 
                 if [ $curl_exit_code -eq 0 ]; then
-                    # Verify downloaded archive
                     if [ -s "$temp_archive" ]; then
                         local file_size
                         file_size=$(wc -c < "$temp_archive")
@@ -1110,7 +1116,6 @@ download_binary() {
                     esac
                     log_install "⚠ $last_error"
                 fi
-            # Try wget as fallback
             elif command -v wget >/dev/null 2>&1; then
                 if wget --timeout=30 --tries=1 -O "$temp_archive" "$url" 2>/dev/null; then
                     if [ -s "$temp_archive" ] && [ "$(wc -c < "$temp_archive")" -gt 1000 ]; then
@@ -1150,7 +1155,6 @@ download_binary() {
         return 1
     }
     
-    # Function to extract binary from .tar.gz archive
     extract_binary_from_archive() {
         local archive_file="$1"
         local extract_dir="$2"
@@ -1158,27 +1162,23 @@ download_binary() {
         
         log_install_step "Extracting binary from archive..."
         
-        # Check if tar command is available
         if ! command -v tar >/dev/null 2>&1; then
             log_install_error "tar command not found - required to extract .tar.gz archives"
             return 1
         fi
         
-        # Extract archive to temporary directory
         if ! tar -xzf "$archive_file" -C "$extract_dir" 2>/dev/null; then
             log_install_error "Failed to extract archive: $archive_file"
             log_install "💡 Archive may be corrupted or not a valid .tar.gz file"
             return 1
         fi
         
-        # Find the binary in the extracted files
         local binary_path=""
         if [ -f "$extract_dir/$expected_binary_name" ]; then
             binary_path="$extract_dir/$expected_binary_name"
         elif [ -f "$extract_dir/portty" ]; then
             binary_path="$extract_dir/portty"
         else
-            # Search for any executable file named portty
             binary_path=$(find "$extract_dir" -name "portty" -type f -executable 2>/dev/null | head -1)
         fi
         
@@ -1189,13 +1189,11 @@ download_binary() {
             return 1
         fi
         
-        # Verify the binary is executable
         if [ ! -x "$binary_path" ]; then
             log_install "Making binary executable..."
             chmod +x "$binary_path" 2>/dev/null || true
         fi
         
-        # Copy binary to final location
         if cp "$binary_path" "$BINARY_FILE" 2>/dev/null; then
             chmod +x "$BINARY_FILE"
             log_install "✓ Binary extracted and installed successfully"
@@ -1206,7 +1204,6 @@ download_binary() {
         fi
     }
     
-    # First, try platform-specific archive if platform was detected
     if [ "$platform_detected" = true ]; then
         download_url="https://github.com/PiTZE/PorTTY/releases/download/${version}/${platform_archive}"
         
@@ -1217,7 +1214,6 @@ download_binary() {
         fi
     fi
     
-    # If platform-specific download failed, try generic archive
     if [ "$download_success" = false ]; then
         download_url="https://github.com/PiTZE/PorTTY/releases/download/${version}/${fallback_archive}"
         
@@ -1226,7 +1222,6 @@ download_binary() {
         fi
     fi
     
-    # Final check and installation
     if [ "$download_success" = true ]; then
         # Extract and install binary from archive
         if extract_binary_from_archive "$temp_archive" "$temp_extract_dir"; then
@@ -1253,7 +1248,6 @@ create_service_file() {
     
     log_install_step "Creating systemd service file..."
     
-    # Create service directory if it doesn't exist
     local service_dir
     service_dir=$(dirname "$SERVICE_FILE")
     if ! mkdir -p "$service_dir" 2>/dev/null; then
@@ -1268,7 +1262,6 @@ create_service_file() {
     exec_command="$exec_command $interface:$port"
     
     if [ "$USER_INSTALL" = true ]; then
-        # User service file
         cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=PorTTY Terminal Server (User)
@@ -1287,7 +1280,6 @@ StandardError=append:$RUNTIME_LOG
 WantedBy=default.target
 EOF
     else
-        # System service file
         cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=PorTTY Terminal Server
@@ -1323,7 +1315,6 @@ install_portty() {
     
     log_install_step "Starting PorTTY installation..."
     
-    # Validate tmux when --tmux flag is used
     if [ "$USE_TMUX" = true ]; then
         if ! command -v tmux &> /dev/null; then
             log_error "tmux is required when using --tmux flag but is not installed."
