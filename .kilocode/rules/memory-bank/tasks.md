@@ -254,3 +254,135 @@ This document contains step-by-step instructions for common maintenance and deve
 - Remove pprof imports in production builds
 - Profile under realistic load conditions
 - Focus on hot paths identified by profiler
+
+## Build and Run PorTTY
+
+**Last performed:** Daily development task
+**Files involved:**
+- `/build.sh` - Build script
+- `/portty` - Generated binary (symlink to build/bin/portty)
+
+**Steps:**
+1. Build for current platform:
+   ```bash
+   ./build.sh
+   ```
+
+2. Build for all platforms:
+   ```bash
+   ./build.sh all
+   ```
+
+3. Build release with archives:
+   ```bash
+   ./build.sh release
+   ```
+
+4. Run PorTTY locally:
+   ```bash
+   ./portty run
+   # Or specify address:
+   ./portty run 0.0.0.0:7314
+   ```
+
+5. Run with tmux mode:
+   ```bash
+   ./portty run --tmux
+   ```
+
+6. Stop PorTTY:
+   ```bash
+   # Ctrl+C in terminal, or:
+   pkill portty
+   ```
+
+**Important notes:**
+- Build outputs go to `build/bin/` (binaries) and `build/release/` (archives)
+- Default port is 7314
+- Access via browser at http://localhost:7314
+- Use `./portty help` for all available commands
+
+## Install/Uninstall PorTTY System-wide
+
+**Last performed:** v0.2 testing
+**Files involved:**
+- `/install.sh` - Installation script
+- `/usr/local/bin/portty` - System binary location
+- `/etc/systemd/system/portty.service` - Service file
+
+**Steps:**
+1. Install PorTTY:
+   ```bash
+   # Interactive mode:
+   sudo ./install.sh
+   
+   # Command line mode:
+   sudo ./install.sh install 0.0.0.0:7314
+   ```
+
+2. Start service:
+   ```bash
+   sudo systemctl start portty
+   sudo systemctl enable portty  # Auto-start on boot
+   ```
+
+3. Check service status:
+   ```bash
+   sudo systemctl status portty
+   journalctl -u portty -f  # Follow logs
+   ```
+
+4. Stop service:
+   ```bash
+   sudo systemctl stop portty
+   sudo systemctl disable portty  # Remove auto-start
+   ```
+
+5. Uninstall PorTTY:
+   ```bash
+   sudo ./install.sh uninstall
+   ```
+
+**Important notes:**
+- Installation requires root privileges
+- Service runs on specified interface and port
+- Logs are available via journalctl
+- Uninstall removes binary, service, and logs
+
+## Development Workflow
+
+**Last performed:** Daily development
+**Files involved:**
+- All source files in `/cmd/portty/` and `/internal/`
+
+**Steps:**
+1. Make code changes
+
+2. Format and vet code:
+   ```bash
+   go fmt ./...
+   go vet ./...
+   ```
+
+3. Build and test:
+   ```bash
+   ./build.sh
+   ./portty run
+   ```
+
+4. Test in browser:
+   - Open http://localhost:7314
+   - Test terminal functionality
+   - Check browser console for errors
+
+5. Commit changes:
+   ```bash
+   git add .
+   git commit -m "Description of changes"
+   ```
+
+**Important notes:**
+- Always test locally before committing
+- Check browser console for JavaScript errors
+- Verify WebSocket connection works properly
+- Test terminal resizing and keyboard shortcuts

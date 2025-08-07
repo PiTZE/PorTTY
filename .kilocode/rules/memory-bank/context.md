@@ -13,7 +13,18 @@
 - **Installation system fully functional and tested**
 
 ## Recent Work (v0.2 Release Completion)
-- **Critical Installation Fix (Latest)**:
+- **Build System Overhaul (Latest)**:
+  - **Issue Identified**: Build script only created one binary and exited, no tar files generated for default builds
+  - **Root Cause**: `set -e` combined with arithmetic operations `((build_count++))` causing script exit on first increment
+  - **Solution Applied**: Changed arithmetic operations to `build_count=$((build_count + 1))` format
+  - **Default Build Fix**: Removed version check preventing tar creation in dev mode - now all builds create tar files
+  - **Directory Organization**: All outputs organized in `build/bin/` (binaries) and `build/release/` (compressed archives)
+  - **Git Integration**: Added `/build/` directory to .gitignore to exclude build artifacts from version control
+  - **Tag Update**: Updated v0.2 tag to include build system fixes with comprehensive release message
+  - **Cross-Platform Support**: Successfully builds 13 platform combinations with static linking for universal compatibility
+  - **Testing Verified**: All build modes (`./build.sh`, `./build.sh all`, `./build.sh release`) working correctly
+
+- **Critical Installation Fix (Previous)**:
   - **Issue Identified**: Download failures with curl exit code 3 (URL malformed) due to temporary file creation problems
   - **Root Cause**: `mktemp` attempting to create files in `/usr/local/bin/` without proper permissions
   - **Solution Applied**: Changed temporary file creation to use system temp directory with `-t` flag
