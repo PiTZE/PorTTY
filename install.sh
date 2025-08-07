@@ -1320,7 +1320,7 @@ create_service_file() {
     if [ "$USE_TMUX" = true ]; then
         exec_command="$exec_command --tmux"
     fi
-    exec_command="$exec_command $interface:$port"
+    exec_command="$exec_command -i $interface -p $port"
     
     if [ "$USER_INSTALL" = true ]; then
         cat > "$SERVICE_FILE" << EOF
