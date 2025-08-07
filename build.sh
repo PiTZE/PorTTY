@@ -245,9 +245,6 @@ elif [[ "$1" == "release" ]]; then
     echo "Release build complete with archives for all platforms."
 else
     build_single_binary
+    create_release_archives
     echo "Build complete. Run './portty help' for usage information."
-    
-    if [[ "$VERSION" != "dev" ]]; then
-        create_release_archives
-    fi
 fi
