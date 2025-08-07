@@ -49,20 +49,19 @@ vet_go_code() {
 
 setup_build_directories() {
     echo "Setting up build directories..."
-    mkdir -p build/bin build/release
-    echo "Build directories created: build/bin, build/release"
+    mkdir -p dist/bin dist/release
+    echo "Build directories created: dist/bin, dist/release"
 }
 
 build_binary_for_platform() {
     local os=$1
     local arch=$2
     local binary_name="portty"
-    local output_path="build/bin/portty-${os}-${arch}"
+    local output_path="dist/bin/portty-${os}-${arch}"
     
-    # Add .exe extension for Windows
     if [ "$os" = "windows" ]; then
         binary_name="portty.exe"
-        output_path="build/bin/portty-${os}-${arch}.exe"
+        output_path="dist/bin/portty-${os}-${arch}.exe"
     fi
     
     echo "Building PorTTY binary for ${os}/${arch} (static)..."
@@ -81,7 +80,6 @@ build_all_binaries() {
     
     setup_build_directories
     
-    # Define supported platforms
     declare -a platforms=(
         "linux amd64"
         "linux arm64"
@@ -101,7 +99,6 @@ build_all_binaries() {
     local build_count=0
     local total_platforms=${#platforms[@]}
     
-    # Build for each platform
     for platform in "${platforms[@]}"; do
         read -r os arch <<< "$platform"
         if build_binary_for_platform "$os" "$arch"; then
@@ -110,7 +107,7 @@ build_all_binaries() {
     done
     
     echo "Built $build_count/$total_platforms binaries successfully!"
-    echo "Binaries located in: build/bin/"
+    echo "Binaries located in: dist/bin/"
 }
 
 build_single_binary() {
@@ -121,11 +118,11 @@ build_single_binary() {
     setup_build_directories
     
     local binary_name="portty"
-    local output_path="build/bin/portty"
+    local output_path="dist/bin/portty"
     
     if [ "$os" = "windows" ]; then
         binary_name="portty.exe"
-        output_path="build/bin/portty.exe"
+        output_path="dist/bin/portty.exe"
     fi
     
     CGO_ENABLED=0 go build -ldflags="-s -w -extldflags '-static'" -o "${output_path}" ./cmd/portty
@@ -145,28 +142,24 @@ build_single_binary() {
 create_release_archives() {
     echo "Creating release archives for $VERSION..."
     
-    if [ ! -d "build/bin" ]; then
-        echo "Error: build/bin directory not found. Run build first."
+    if [ ! -d "dist/bin" ]; then
+        echo "Error: dist/bin directory not found. Run build first."
         return 1
     fi
     
     local archive_count=0
     
-    # Create archives for all built binaries
-    for binary_path in build/bin/portty-*; do
+    for binary_path in dist/bin/portty-*; do
         if [[ -f "$binary_path" && -x "$binary_path" ]]; then
-            # Extract filename and platform info
             local binary_file=$(basename "$binary_path")
             local platform_info=${binary_file#portty-}
-            # Remove .exe extension if present for archive naming
             platform_info=${platform_info%.exe}
             
             local archive_name="portty-${VERSION}-${platform_info}.tar.gz"
-            local archive_path="build/release/${archive_name}"
+            local archive_path="dist/release/${archive_name}"
             
             echo "Creating archive: $archive_name"
             
-            # Create archive with the binary renamed to just 'portty' (or 'portty.exe' for Windows)
             local temp_dir=$(mktemp -d)
             local binary_name="portty"
             if [[ "$binary_file" == *.exe ]]; then
@@ -177,43 +170,40 @@ create_release_archives() {
             tar -czf "$archive_path" -C "$temp_dir" "$binary_name"
             rm -rf "$temp_dir"
             
-            # Create SHA256 checksum
             echo "Creating SHA256 checksum"
-            (cd build/release && sha256sum "$archive_name" > "${archive_name}.sha256")
+            (cd dist/release && sha256sum "$archive_name" > "${archive_name}.sha256")
             
             echo "✓ Release artifact created: $archive_path"
             archive_count=$((archive_count + 1))
         fi
     done
     
-    # Also create archive for the main portty binary if it exists
-    if [[ -f "build/bin/portty" ]]; then
+    if [[ -f "dist/bin/portty" ]]; then
         local os=$(go env GOOS)
         local arch=$(go env GOARCH)
         local archive_name="portty-${VERSION}-${os}-${arch}.tar.gz"
-        local archive_path="build/release/${archive_name}"
+        local archive_path="dist/release/${archive_name}"
         
         echo "Creating archive for current platform: $archive_name"
         
         local temp_dir=$(mktemp -d)
-        cp "build/bin/portty" "$temp_dir/portty"
+        cp "dist/bin/portty" "$temp_dir/portty"
         tar -czf "$archive_path" -C "$temp_dir" "portty"
         rm -rf "$temp_dir"
         
         echo "Creating SHA256 checksum"
-        (cd build/release && sha256sum "$archive_name" > "${archive_name}.sha256")
+        (cd dist/release && sha256sum "$archive_name" > "${archive_name}.sha256")
         
         echo "✓ Release artifact created: $archive_path"
         archive_count=$((archive_count + 1))
     fi
     
-    echo "Created $archive_count release archives in: build/release/"
+    echo "Created $archive_count release archives in: dist/release/"
     
-    # Create a combined checksums file
     if [ $archive_count -gt 0 ]; then
         echo "Creating combined checksums file..."
-        (cd build/release && cat *.sha256 > checksums.txt)
-        echo "✓ Combined checksums: build/release/checksums.txt"
+        (cd dist/release && cat *.sha256 > checksums.txt)
+        echo "✓ Combined checksums: dist/release/checksums.txt"
     fi
 }
 
@@ -221,7 +211,6 @@ create_release_archives() {
 # MAIN EXECUTION LOGIC
 # ============================================================================
 
-# Check for help option first
 if [[ "$1" == "help" || "$1" == "-h" || "$1" == "--help" ]]; then
     show_help
     exit 0
@@ -232,7 +221,6 @@ echo "Building PorTTY version: $VERSION"
 format_go_code
 vet_go_code
 
-# Check command line arguments
 if [[ "$1" == "all" ]]; then
     build_all_binaries
     echo "Multi-platform build complete. Binaries created for all supported architectures."

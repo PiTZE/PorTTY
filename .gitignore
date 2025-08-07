@@ -1,39 +1,32 @@
-# Project specific binaries
-/portty
+# PorTTY - Browser-based Terminal Access
+
+# Binary outputs
 portty
+/portty
 
-# Test binary, built with `go test -c`
+# Build directory
+dist/
+
+# Go build artifacts
 *.test
-
-# Output of the go coverage tool
 *.out
 *.prof
 *.cov
 
-# Dependency directories
+# Dependencies
 vendor/
-
-# Go workspace file
 go.work
 
-# IDE specific files
+# IDE files
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 
-# Log files
+# Logs
 *.log
-server.log
 
 # Temporary files
 tmp/
 temp/
-
-# Build artifacts
-/build/
-
-# Specific to this project
-!cmd/portty/
-!cmd/portty/**
