@@ -1050,11 +1050,11 @@ download_binary() {
     local temp_archive
     local temp_extract_dir
     if command -v mktemp >/dev/null 2>&1; then
-        temp_archive=$(mktemp "${BINARY_FILE}.archive.XXXXXX")
-        temp_extract_dir=$(mktemp -d "${BINARY_FILE}.extract.XXXXXX")
+        temp_archive=$(mktemp -t "portty.archive.XXXXXX")
+        temp_extract_dir=$(mktemp -d -t "portty.extract.XXXXXX")
     else
-        temp_archive="${BINARY_FILE}.archive.tmp.$$"
-        temp_extract_dir="${BINARY_FILE}.extract.tmp.$$"
+        temp_archive="/tmp/portty.archive.tmp.$$"
+        temp_extract_dir="/tmp/portty.extract.tmp.$$"
         mkdir -p "$temp_extract_dir"
     fi
     
