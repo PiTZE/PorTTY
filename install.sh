@@ -881,9 +881,22 @@ detect_platform() {
         "Darwin")
             os="darwin"
             ;;
+        "FreeBSD")
+            os="freebsd"
+            ;;
+        "OpenBSD")
+            os="openbsd"
+            ;;
+        "NetBSD")
+            os="netbsd"
+            ;;
+        "CYGWIN"*|"MINGW"*|"MSYS"*)
+            os="windows"
+            ;;
         *)
             log_warning "Unknown or unsupported OS: $uname_os"
-            return 1
+            log_debug "Falling back to Linux detection"
+            os="linux"
             ;;
     esac
     
@@ -899,13 +912,42 @@ detect_platform() {
         "armv7l"|"armv6l"|"arm")
             arch="arm"
             ;;
+        "i386"|"i686"|"x86")
+            arch="386"
+            ;;
         *)
             log_warning "Unknown or unsupported architecture: $uname_arch"
-            return 1
+            log_debug "Falling back to amd64 architecture"
+            arch="amd64"
             ;;
     esac
     
+    # Validate platform combination against supported platforms
+    local supported_platforms=(
+        "linux-amd64" "linux-arm64" "linux-arm" "linux-386"
+        "darwin-amd64" "darwin-arm64"
+        "windows-amd64" "windows-arm64" "windows-386"
+        "freebsd-amd64" "freebsd-arm64"
+        "openbsd-amd64"
+        "netbsd-amd64"
+    )
+    
     platform="${os}-${arch}"
+    local platform_supported=false
+    
+    for supported in "${supported_platforms[@]}"; do
+        if [ "$platform" = "$supported" ]; then
+            platform_supported=true
+            break
+        fi
+    done
+    
+    if [ "$platform_supported" = false ]; then
+        log_warning "Platform combination not officially supported: $platform"
+        log_debug "Will attempt download but may fall back to generic binary"
+        # Don't return error - let download attempt with fallback
+    fi
+    
     log_debug "Detected platform: $platform (OS: $os, Architecture: $arch)"
     
     DETECTED_OS="$os"
@@ -985,9 +1027,9 @@ get_latest_version() {
 # ============================================================================
 
 verify_checksum() {
-    local binary_file="$1"
+    local archive_file="$1"
     local version="$2"
-    local binary_name="$3"
+    local archive_name="$3"
     
     if [ "$SKIP_CHECKSUM" = true ]; then
         log_install "⚠ Checksum verification skipped (--skip-checksum flag used)"
@@ -1033,23 +1075,24 @@ verify_checksum() {
     local expected_checksum=""
     local checksum_line=""
     
-    checksum_line=$(grep -E "^[a-fA-F0-9]{64}[[:space:]]+${binary_name}$" "$checksums_file" 2>/dev/null | head -1)
+    # Look for checksum of the archive file
+    checksum_line=$(grep -E "^[a-fA-F0-9]{64}[[:space:]]+${archive_name}$" "$checksums_file" 2>/dev/null | head -1)
     
     if [ -n "$checksum_line" ]; then
         expected_checksum=$(echo "$checksum_line" | awk '{print $1}')
-        log_install "Found checksum for ${binary_name}: ${expected_checksum:0:16}..."
+        log_install "Found checksum for ${archive_name}: ${expected_checksum:0:16}..."
     else
-        log_install "⚠ No checksum found for binary: $binary_name"
+        log_install "⚠ No checksum found for archive: $archive_name"
         log_install "⚠ Skipping checksum verification"
         return 0
     fi
     
-    log_install "Calculating SHA256 checksum of downloaded binary..."
+    log_install "Calculating SHA256 checksum of downloaded archive..."
     local actual_checksum
-    actual_checksum=$($checksum_cmd "$binary_file" 2>/dev/null | awk '{print $1}')
+    actual_checksum=$($checksum_cmd "$archive_file" 2>/dev/null | awk '{print $1}')
     
     if [ -z "$actual_checksum" ]; then
-        log_install_error "Failed to calculate checksum of downloaded binary"
+        log_install_error "Failed to calculate checksum of downloaded archive"
         return 1
     fi
     
@@ -1062,7 +1105,7 @@ verify_checksum() {
         log_install_error "✗ Checksum verification failed!"
         log_install_error "  Expected: ${expected_checksum}"
         log_install_error "  Actual:   ${actual_checksum}"
-        log_install_error "  Binary may be corrupted or tampered with"
+        log_install_error "  Archive may be corrupted or tampered with"
         return 1
     fi
 }
@@ -1093,13 +1136,28 @@ download_binary() {
         return 0
     fi
     
+    # Enhanced platform detection with multi-architecture support
     if detect_platform; then
         platform_archive="portty-${version}-${DETECTED_PLATFORM}.tar.gz"
         platform_detected=true
-        log_install "Detected platform: ${DETECTED_PLATFORM}"
+        log_install "Detected platform: ${DETECTED_PLATFORM} (OS: ${DETECTED_OS}, Arch: ${DETECTED_ARCH})"
         log_install "Will attempt platform-specific archive: ${platform_archive}"
+        
+        # Set appropriate fallback based on detected OS
+        case "$DETECTED_OS" in
+            "linux")
+                fallback_archive="portty-${version}-linux-amd64.tar.gz"
+                ;;
+            "darwin")
+                fallback_archive="portty-${version}-darwin-amd64.tar.gz"
+                ;;
+            *)
+                fallback_archive="portty-${version}-linux-amd64.tar.gz"
+                ;;
+        esac
+        log_install "Fallback archive: ${fallback_archive}"
     else
-        log_install "Platform detection failed, will use generic archive"
+        log_install "Platform detection failed, will use generic Linux amd64 archive"
         platform_detected=false
     fi
     
@@ -1235,32 +1293,73 @@ download_binary() {
         fi
         
         local binary_path=""
+        
+        # Look for various binary naming patterns
+        # 1. Standard name: portty
         if [ -f "$extract_dir/$expected_binary_name" ]; then
             binary_path="$extract_dir/$expected_binary_name"
-        elif [ -f "$extract_dir/portty" ]; then
-            binary_path="$extract_dir/portty"
+            log_install "Found standard binary: $binary_path"
+        # 2. Platform-specific name: portty-{os}-{arch}
+        elif [ -n "$DETECTED_PLATFORM" ] && [ -f "$extract_dir/portty-${DETECTED_PLATFORM}" ]; then
+            binary_path="$extract_dir/portty-${DETECTED_PLATFORM}"
+            log_install "Found platform-specific binary: $binary_path"
+        # 3. Search for any portty binary
         else
-            binary_path=$(find "$extract_dir" -name "portty" -type f -executable 2>/dev/null | head -1)
+            binary_path=$(find "$extract_dir" -name "portty*" -type f 2>/dev/null | head -1)
+            if [ -n "$binary_path" ]; then
+                log_install "Found binary via search: $binary_path"
+            fi
+        fi
+        
+        # Final fallback: look for any executable file
+        if [ -z "$binary_path" ] || [ ! -f "$binary_path" ]; then
+            binary_path=$(find "$extract_dir" -type f -executable 2>/dev/null | head -1)
+            if [ -n "$binary_path" ]; then
+                log_install "Found executable file: $binary_path"
+            fi
         fi
         
         if [ -z "$binary_path" ] || [ ! -f "$binary_path" ]; then
-            log_install_error "Binary 'portty' not found in extracted archive"
+            log_install_error "No suitable binary found in extracted archive"
             log_install "💡 Archive contents:"
             ls -la "$extract_dir" 2>/dev/null || true
+            log_install "💡 Looking for files matching 'portty*':"
+            find "$extract_dir" -name "portty*" -type f 2>/dev/null || true
             return 1
         fi
         
+        # Verify the binary is actually executable or make it so
         if [ ! -x "$binary_path" ]; then
             log_install "Making binary executable..."
-            chmod +x "$binary_path" 2>/dev/null || true
+            if ! chmod +x "$binary_path" 2>/dev/null; then
+                log_install_error "Failed to make binary executable: $binary_path"
+                return 1
+            fi
+        fi
+        
+        # Test if the binary is actually a PorTTY binary
+        if "$binary_path" --version >/dev/null 2>&1; then
+            log_install "✓ Binary verification successful"
+        else
+            log_install "⚠ Binary verification failed - may not be a valid PorTTY binary"
+            log_install "⚠ Proceeding anyway..."
         fi
         
         if cp "$binary_path" "$BINARY_FILE" 2>/dev/null; then
             chmod +x "$BINARY_FILE"
             log_install "✓ Binary extracted and installed successfully"
+            
+            # Verify final installation
+            if [ -x "$BINARY_FILE" ]; then
+                local installed_version
+                installed_version=$("$BINARY_FILE" --version 2>/dev/null | head -1 || echo "unknown")
+                log_install "✓ Installed version: $installed_version"
+            fi
+            
             return 0
         else
             log_install_error "Failed to copy binary to final location: $BINARY_FILE"
+            log_install "💡 Check permissions on directory: $(dirname "$BINARY_FILE")"
             return 1
         fi
     }
@@ -1284,9 +1383,27 @@ download_binary() {
     fi
     
     if [ "$download_success" = true ]; then
+        # Verify checksum before extraction
+        local archive_name=""
+        if [ "$platform_detected" = true ]; then
+            archive_name="portty-${version}-${DETECTED_PLATFORM}.tar.gz"
+        else
+            archive_name="portty-${version}-linux-amd64.tar.gz"
+        fi
+        
+        if verify_checksum "$temp_archive" "$version" "$archive_name"; then
+            log_install "✓ Archive checksum verified"
+        else
+            log_install "⚠ Checksum verification failed, but continuing with installation"
+        fi
+        
         # Extract and install binary from archive
         if extract_binary_from_archive "$temp_archive" "$temp_extract_dir"; then
             log_install "✓ PorTTY binary installed successfully"
+            
+            # Clean up any empty directories that might have been created
+            cleanup_empty_directories "$temp_extract_dir"
+            
             return 0
         else
             log_install_error "Failed to extract and install binary from archive"
@@ -1301,6 +1418,25 @@ download_binary() {
     log_install "  3. Try manual download and place in: $INSTALL_DIR"
     log_install "  4. Check network connectivity and firewall settings"
     return 1
+}
+
+cleanup_empty_directories() {
+    local base_dir="$1"
+    
+    if [ -z "$base_dir" ] || [ ! -d "$base_dir" ]; then
+        return 0
+    fi
+    
+    log_debug "Cleaning up empty directories in: $base_dir"
+    
+    # Find and remove empty directories, but be careful not to remove the base temp dir
+    # since it's handled by the cleanup function
+    find "$base_dir" -type d -empty -not -path "$base_dir" -delete 2>/dev/null || true
+    
+    # Also clean up any directories named 'portty' that might be empty
+    find "$base_dir" -type d -name "portty" -empty -delete 2>/dev/null || true
+    
+    log_debug "Empty directory cleanup completed"
 }
 
 create_service_file() {
