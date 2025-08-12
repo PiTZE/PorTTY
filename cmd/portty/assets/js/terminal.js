@@ -398,7 +398,6 @@ function initializePorTTY() {
     
     setupWebSocketConnection(term, fitAddon, connectionManager, socket, reconnectAttempts);
     setupReactiveResize(term, fitAddon);
-    setupConnectionInfo(socket, reconnectAttempts, term);
     setupKeyboardShortcuts(fontSizeManager, searchManager, term);
 }
 
@@ -517,38 +516,6 @@ function setupReactiveResize(term, fitAddon) {
     window.porttyManualResize = performResize;
 }
 
-function setupConnectionInfo(socket, reconnectAttempts, term) {
-    const connectionInfoBtn = document.getElementById('offline-mode-btn');
-    if (connectionInfoBtn && !isRunningOnLocalhost()) {
-        connectionInfoBtn.addEventListener('click', () => {
-            const info = {
-                status: socket ? socket.readyState : 'No socket',
-                url: socket ? socket.url : 'N/A',
-                reconnectAttempts: reconnectAttempts,
-                maxReconnectAttempts: MAX_RECONNECT_ATTEMPTS,
-                keepAliveActive: socket && socket.readyState === WebSocket.OPEN
-            };
-            
-            const statusText = {
-                0: 'CONNECTING',
-                1: 'OPEN',
-                2: 'CLOSING',
-                3: 'CLOSED'
-            };
-            
-            alert(`Connection Information:
-Status: ${statusText[info.status] || info.status}
-URL: ${info.url}
-Reconnect Attempts: ${info.reconnectAttempts}/${info.maxReconnectAttempts}
-Keep-Alive: ${info.keepAliveActive ? 'Active' : 'Inactive'}
-Terminal: ${term.cols}x${term.rows}`);
-            
-            setTimeout(() => {
-                term.focus();
-            }, 100);
-        });
-    }
-}
 
 function setupKeyboardShortcuts(fontSizeManager, searchManager, term) {
     const handleKeydown = (e) => {
