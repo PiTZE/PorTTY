@@ -214,49 +214,6 @@ html, body {
 }
 
 
-.offline-ui {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.95);
-    border: 1px solid var(--tertiary-border-color);
-    border-radius: 8px;
-    padding: 2rem;
-    text-align: center;
-    z-index: 1001;
-    backdrop-filter: blur(8px);
-    max-width: 400px;
-    width: 90%;
-}
-
-.offline-ui.hidden {
-    display: none;
-}
-
-.offline-header h3 {
-    color: var(--success-color);
-    margin: 0 0 0.5rem 0;
-    font-family: var(--font-family);
-}
-
-.offline-header p {
-    color: var(--secondary-background-color);
-    margin: 0 0 1.5rem 0;
-    font-family: var(--font-family);
-    font-size: 0.9rem;
-}
-
-.online-btn {
-    background: var(--accent-color);
-    border-color: var(--accent-color);
-}
-
-.online-btn:hover {
-    background: var(--accent-hover-color);
-}
-
-
 
 @keyframes pulse {
     0%, 100% { opacity: 1; }
