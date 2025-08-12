@@ -1,56 +1,62 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/BurntSushi/toml"
 )
 
 // ============================================================================
 // CONFIGURATION TYPES
 // ============================================================================
 
-// Config represents the complete application configuration
 type Config struct {
-	Server    ServerConfig
-	Terminal  TerminalConfig
-	WebSocket WebSocketConfig
+	Server    ServerConfig    `toml:"server"`
+	Terminal  TerminalConfig  `toml:"terminal"`
+	WebSocket WebSocketConfig `toml:"websocket"`
+	UI        UIConfig        `toml:"ui"`
 }
 
-// ServerConfig contains server-related configuration
 type ServerConfig struct {
-	DefaultAddress      string
-	SessionName         string
-	PidFileName         string
-	Version             string
-	PidFilePermissions  os.FileMode
-	ShutdownTimeout     time.Duration
-	FallbackTempDir     string
-	PTYOperationTimeout time.Duration
-	TmuxCleanupTimeout  time.Duration
-	UseTmux             bool
+	DefaultAddress      string        `toml:"default_address"`
+	SessionName         string        `toml:"session_name"`
+	PidFileName         string        `toml:"pid_file_name"`
+	Version             string        `toml:"version"`
+	PidFilePermissions  os.FileMode   `toml:"pid_file_permissions"`
+	ShutdownTimeout     time.Duration `toml:"shutdown_timeout"`
+	FallbackTempDir     string        `toml:"fallback_temp_dir"`
+	PTYOperationTimeout time.Duration `toml:"pty_operation_timeout"`
+	TmuxCleanupTimeout  time.Duration `toml:"tmux_cleanup_timeout"`
+	UseTmux             bool          `toml:"use_tmux"`
 }
 
-// TerminalConfig contains terminal-related configuration
 type TerminalConfig struct {
-	DefaultRows  int
-	DefaultCols  int
-	DefaultTerm  string
-	DefaultColor string
-	DefaultShell string
+	DefaultRows  int    `toml:"default_rows"`
+	DefaultCols  int    `toml:"default_cols"`
+	DefaultTerm  string `toml:"default_term"`
+	DefaultColor string `toml:"default_color"`
+	DefaultShell string `toml:"default_shell"`
 }
 
-// WebSocketConfig contains WebSocket-related configuration
 type WebSocketConfig struct {
-	WriteWait            time.Duration
-	PongWait             time.Duration
-	PingPeriod           time.Duration
-	MaxMessageSize       int64
-	MessageChannelBuffer int
-	ReadBufferSize       int
-	WriteBufferSize      int
-	ErrorRetryDelay      time.Duration
+	WriteWait            time.Duration `toml:"write_wait"`
+	PongWait             time.Duration `toml:"pong_wait"`
+	PingPeriod           time.Duration `toml:"ping_period"`
+	MaxMessageSize       int64         `toml:"max_message_size"`
+	MessageChannelBuffer int           `toml:"message_channel_buffer"`
+	ReadBufferSize       int           `toml:"read_buffer_size"`
+	WriteBufferSize      int           `toml:"write_buffer_size"`
+	ErrorRetryDelay      time.Duration `toml:"error_retry_delay"`
+}
+
+type UIConfig struct {
+	FontFamily string `toml:"font_family"`
+	FontSize   int    `toml:"font_size"`
 }
 
 // ============================================================================
@@ -69,17 +75,18 @@ func getDefaultShell() string {
 			return shell
 		}
 	}
+
 	commonShells := []string{
-		"/run/current-system/sw/bin/zsh",  // NixOS zsh
-		"/run/current-system/sw/bin/bash", // NixOS bash
-		"/usr/bin/zsh",                    // Standard zsh
-		"/bin/zsh",                        // Alternative zsh
-		"/usr/bin/bash",                   // Standard bash
-		"/bin/bash",                       // Alternative bash
-		"/usr/bin/fish",                   // Fish shell
-		"/bin/fish",                       // Alternative fish
-		"/usr/bin/sh",                     // Standard sh
-		"/bin/sh",                         // Alternative sh
+		"/run/current-system/sw/bin/zsh",
+		"/run/current-system/sw/bin/bash",
+		"/usr/bin/zsh",
+		"/bin/zsh",
+		"/usr/bin/bash",
+		"/bin/bash",
+		"/usr/bin/fish",
+		"/bin/fish",
+		"/usr/bin/sh",
+		"/bin/sh",
 	}
 
 	for _, shell := range commonShells {
@@ -113,12 +120,38 @@ func getShellFromPasswd(username string) string {
 	return ""
 }
 
+func getSystemMonospaceFont() string {
+	return "monospace"
+}
+
+func getConfigDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+
+	configDir := filepath.Join(homeDir, ".portty")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	return configDir, nil
+}
+
+func getConfigPath() (string, error) {
+	configDir, err := getConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(configDir, "config.toml"), nil
+}
+
 // ============================================================================
-// CONFIGURATION CONSTANTS
+// CONFIGURATION DEFAULTS
 // ============================================================================
 
-// NewDefault returns a Config with all default values
-func NewDefault() *Config {
+func newDefaultConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
 			DefaultAddress:      "localhost:7314",
@@ -149,12 +182,69 @@ func NewDefault() *Config {
 			WriteBufferSize:      4096,
 			ErrorRetryDelay:      50 * time.Millisecond,
 		},
+		UI: UIConfig{
+			FontFamily: getSystemMonospaceFont(),
+			FontSize:   14,
+		},
 	}
+}
+
+// ============================================================================
+// CONFIGURATION LOADING AND SAVING
+// ============================================================================
+
+func Load() (*Config, error) {
+	configPath, err := getConfigPath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config path: %w", err)
+	}
+
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		config := newDefaultConfig()
+		if err := config.Save(); err != nil {
+			return nil, fmt.Errorf("failed to create default config: %w", err)
+		}
+		return config, nil
+	}
+
+	var config Config
+	if _, err := toml.DecodeFile(configPath, &config); err != nil {
+		return nil, fmt.Errorf("failed to decode config file: %w", err)
+	}
+
+	return &config, nil
+}
+
+func (c *Config) Save() error {
+	configPath, err := getConfigPath()
+	if err != nil {
+		return fmt.Errorf("failed to get config path: %w", err)
+	}
+
+	file, err := os.Create(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to create config file: %w", err)
+	}
+	defer file.Close()
+
+	encoder := toml.NewEncoder(file)
+	if err := encoder.Encode(c); err != nil {
+		return fmt.Errorf("failed to encode config: %w", err)
+	}
+
+	return nil
 }
 
 // ============================================================================
 // GLOBAL CONFIGURATION INSTANCE
 // ============================================================================
 
-// Default holds the default configuration instance
-var Default = NewDefault()
+var Default *Config
+
+func init() {
+	var err error
+	Default, err = Load()
+	if err != nil {
+		Default = newDefaultConfig()
+	}
+}

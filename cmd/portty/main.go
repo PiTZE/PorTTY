@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net"
@@ -168,6 +169,8 @@ func (sm *ServerManager) Start(ctx context.Context, address string) error {
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		sm.wsHandler.HandleWS(appCtx, w, r)
 	})
+
+	mux.HandleFunc("/api/config", handleConfigAPI)
 
 	webFS, err := fs.Sub(webContent, "assets")
 	if err != nil {
@@ -335,6 +338,33 @@ func findAndKillProcess() {
 		}
 
 		logger.ServerLogger.Info("Sent termination signal to PorTTY", logger.Int("pid", pid))
+	}
+}
+
+// ============================================================================
+// API HANDLERS
+// ============================================================================
+
+func handleConfigAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-cache")
+
+	configResponse := map[string]interface{}{
+		"ui": map[string]interface{}{
+			"font_family": cfg.UI.FontFamily,
+			"font_size":   cfg.UI.FontSize,
+		},
+	}
+
+	if err := json.NewEncoder(w).Encode(configResponse); err != nil {
+		logger.ServerLogger.Error("failed to encode config response", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 }
 

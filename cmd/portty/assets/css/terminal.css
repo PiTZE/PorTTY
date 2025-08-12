@@ -3,18 +3,10 @@
 /* ============================================================================ */
 
 :root {
-    --font-family: 'JetBrainsMono Nerd Font',
-                   'JetBrainsMono NF',
-                   'JetBrainsMono Nerd Font Mono',
-                   'JetBrainsMonoNL Nerd Font',
-                   'JetBrains Mono',
-                   'Meslo LG M for Powerline',
-                   'Meslo LG M DZ for Powerline',
-                   'MesloLGM Nerd Font',
-                   'Hack Nerd Font',
-                   'Source Code Pro',
-                   monospace;
+    --font-family: monospace;
     --font-size: 14px;
+    --font-weight: 500;
+    --font-weight-bold: 700;
     --background-color: #000000;
     --foreground-color: #f0f0f0;
     --cursor-color: #ffffff;
@@ -60,13 +52,18 @@ html, body {
 .terminal {
     font-family: var(--font-family);
     font-size: var(--font-size);
+    font-weight: var(--font-weight);
 }
 
 .xterm {
     flex: 1;
     width: 100%;
     min-height: 0;
-    font-feature-settings: "liga" 0;
+    font-weight: var(--font-weight);
+    font-feature-settings: "liga" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     position: relative;
     user-select: none;
     -ms-user-select: none;

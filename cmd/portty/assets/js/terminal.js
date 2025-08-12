@@ -41,12 +41,32 @@ function testWebGL2Support() {
 function getThemeFromCSS() {
     const rootStyles = getComputedStyle(document.documentElement);
     return {
-        fontFamily: rootStyles.getPropertyValue('--font-family').trim() || "'JetBrains Mono', monospace",
+        fontFamily: rootStyles.getPropertyValue('--font-family').trim() || 'monospace',
         fontSize: parseInt(rootStyles.getPropertyValue('--font-size').trim()) || 14,
         backgroundColor: rootStyles.getPropertyValue('--background-color').trim() || '#000000',
         foregroundColor: rootStyles.getPropertyValue('--foreground-color').trim() || '#f0f0f0',
         cursorColor: rootStyles.getPropertyValue('--cursor-color').trim() || '#ffffff'
     };
+}
+
+async function fetchFontConfig() {
+    try {
+        const response = await fetch('/api/config');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const config = await response.json();
+        return {
+            fontFamily: config.fontFamily || 'monospace',
+            fontSize: config.fontSize || 14
+        };
+    } catch (error) {
+        console.warn('[PorTTY] Failed to fetch font config, using defaults:', error);
+        return {
+            fontFamily: 'monospace',
+            fontSize: 14
+        };
+    }
 }
 
 function validateDependencies() {
@@ -58,7 +78,8 @@ function validateDependencies() {
         { name: 'SearchAddon', check: () => typeof window.SearchAddon !== 'undefined' && typeof window.SearchAddon.SearchAddon !== 'undefined' },
         { name: 'Unicode11Addon', check: () => typeof window.Unicode11Addon !== 'undefined' && typeof window.Unicode11Addon.Unicode11Addon !== 'undefined' },
         { name: 'WebLinksAddon', check: () => typeof window.WebLinksAddon !== 'undefined' && typeof window.WebLinksAddon.WebLinksAddon !== 'undefined' },
-        { name: 'ClipboardAddon', check: () => typeof window.ClipboardAddon !== 'undefined' && typeof window.ClipboardAddon.ClipboardAddon !== 'undefined' }
+        { name: 'ClipboardAddon', check: () => typeof window.ClipboardAddon !== 'undefined' && typeof window.ClipboardAddon.ClipboardAddon !== 'undefined' },
+        { name: 'LigaturesAddon', check: () => typeof window.LigaturesAddon !== 'undefined' && typeof window.LigaturesAddon.LigaturesAddon !== 'undefined' }
     ];
     
     let allLoaded = true;
@@ -162,10 +183,39 @@ class ConnectionStatusManager {
     }
 }
 
+class FontManager {
+    constructor(terminal) {
+        this.terminal = terminal;
+        this.currentFont = null;
+    }
+    
+    updateFont(fontFamily) {
+        this.currentFont = fontFamily;
+        this.terminal.options.fontFamily = fontFamily;
+        document.documentElement.style.setProperty('--font-family', fontFamily);
+        
+        if (window.porttyFitAddon) {
+            requestAnimationFrame(() => {
+                window.porttyFitAddon.fit();
+                sendResize(this.terminal);
+            });
+        }
+    }
+    
+    recalculateDimensions() {
+        if (window.porttyFitAddon) {
+            requestAnimationFrame(() => {
+                window.porttyFitAddon.fit();
+                sendResize(this.terminal);
+            });
+        }
+    }
+}
+
 class FontSizeManager {
-    constructor(term) {
+    constructor(term, initialSize = 14) {
         this.term = term;
-        this.currentSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--font-size').trim()) || 14;
+        this.currentSize = initialSize;
         this.minSize = 8;
         this.maxSize = 32;
     }
@@ -298,7 +348,7 @@ class SearchManager {
 // MAIN INITIALIZATION LOGIC
 // ============================================================================
 
-function initializePorTTY() {
+async function initializePorTTY() {
     if (!validateDependencies()) {
         return;
     }
@@ -306,6 +356,7 @@ function initializePorTTY() {
     const supportsWebgl2InWorker = testWebGL2Support();
     console.log('[PorTTY] WebGL2 support detected:', supportsWebgl2InWorker);
     
+    const fontConfig = await fetchFontConfig();
     const theme = getThemeFromCSS();
     const terminalContainer = document.getElementById('terminal-container');
     
@@ -314,10 +365,19 @@ function initializePorTTY() {
         return;
     }
     
+    await document.fonts.ready;
+    
+    document.documentElement.style.setProperty('--font-family', fontConfig.fontFamily);
+    document.documentElement.style.setProperty('--font-size', `${fontConfig.fontSize}px`);
+    
+    console.log(`[PorTTY] Using font: ${fontConfig.fontFamily} at ${fontConfig.fontSize}px`);
+    
     const term = new Terminal({
         cursorBlink: true,
-        fontFamily: theme.fontFamily,
-        fontSize: theme.fontSize,
+        fontFamily: fontConfig.fontFamily,
+        fontSize: fontConfig.fontSize,
+        fontWeight: 500,
+        fontWeightBold: 700,
         theme: {
             background: theme.backgroundColor,
             foreground: theme.foregroundColor,
@@ -337,6 +397,7 @@ function initializePorTTY() {
     const unicode11Addon = new window.Unicode11Addon.Unicode11Addon();
     const webLinksAddon = new window.WebLinksAddon.WebLinksAddon();
     const clipboardAddon = new window.ClipboardAddon.ClipboardAddon();
+    const ligaturesAddon = new window.LigaturesAddon.LigaturesAddon();
     
     term.open(terminalContainer);
     
@@ -345,6 +406,7 @@ function initializePorTTY() {
     term.loadAddon(unicode11Addon);
     term.loadAddon(webLinksAddon);
     term.loadAddon(clipboardAddon);
+    term.loadAddon(ligaturesAddon);
     
     if (supportsWebgl2InWorker) {
         try {
@@ -361,7 +423,8 @@ function initializePorTTY() {
         }
     }
     
-    const fontSizeManager = new FontSizeManager(term);
+    const fontManager = new FontManager(term);
+    const fontSizeManager = new FontSizeManager(term, fontConfig.fontSize);
     const searchManager = new SearchManager(term, searchAddon);
     
     const performInitialFit = () => {
@@ -410,6 +473,7 @@ function initializePorTTY() {
     window.porttyTerminal = term;
     window.porttyFitAddon = fitAddon;
     window.porttyConnectionManager = connectionManager;
+    window.porttyFontManager = fontManager;
     window.porttyFontSizeManager = fontSizeManager;
     window.porttySearchManager = searchManager;
     
@@ -579,8 +643,15 @@ function setupKeyboardShortcuts(fontSizeManager, searchManager, term) {
 // DOM READY INITIALIZATION
 // ============================================================================
 
+async function startPorTTY() {
+    if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+    }
+    await initializePorTTY();
+}
+
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializePorTTY);
+    document.addEventListener('DOMContentLoaded', startPorTTY);
 } else {
-    initializePorTTY();
+    startPorTTY();
 }
