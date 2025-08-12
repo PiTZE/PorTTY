@@ -214,8 +214,6 @@ html, body {
     font-size: 0.75rem;
 }
 
-
-
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }

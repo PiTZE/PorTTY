@@ -11,7 +11,7 @@
 
 ### Frontend
 - **Terminal Emulator**: xterm.js v5.5.0 (CDN)
-- **Addons** (8 comprehensive addons):
+- **Addons** (9 comprehensive addons):
   - xterm-addon-fit v0.10.0 (terminal sizing)
   - xterm-addon-attach v0.11.0 (WebSocket attachment)
   - xterm-addon-webgl v0.18.0 (hardware acceleration)
@@ -19,6 +19,7 @@
   - xterm-addon-unicode11 v0.8.0 (Unicode 11 support)
   - xterm-addon-web-links v0.11.0 (clickable web links)
   - xterm-addon-clipboard v0.1.0 (clipboard operations)
+  - xterm-addon-ligatures v0.9.0 (font ligatures support)
 - **Styling**: Custom CSS with Nerd Font support and CSS custom properties
 - **Fonts**: JetBrainsMono Nerd Font with comprehensive fallback stack for icon rendering
 - **JavaScript**: Vanilla JS with ES6+ features (no framework dependencies)
@@ -127,6 +128,7 @@ RestartSec=5
 
 ### Direct Dependencies
 ```
+github.com/BurntSushi/toml v1.4.0
 github.com/creack/pty v1.1.24
 github.com/gorilla/websocket v1.2.0
 ```
@@ -164,14 +166,15 @@ github.com/gorilla/websocket v1.2.0
    - Efficient error recovery
 
 3. **Frontend Optimizations**:
-   - Smart renderer selection (WebGL for desktop, Canvas for mobile)
+   - Smart renderer selection (WebGL2 support testing instead of mobile detection)
    - WebGL hardware acceleration with context loss handling
    - Instant resize response without debouncing
-   - Mobile device detection for optimal performance
-   - Comprehensive addon integration for advanced features
+   - Dynamic font configuration system with API-driven updates
+   - Comprehensive addon integration for advanced features including ligatures
    - Font size management with keyboard shortcuts
    - Advanced search overlay with keyboard navigation
    - Minimal DOM manipulation with efficient event handling
+   - Font loading synchronization with document.fonts.ready
 
 ## Security Considerations
 

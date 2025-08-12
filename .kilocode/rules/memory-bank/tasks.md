@@ -46,7 +46,7 @@ This document contains step-by-step instructions for common maintenance and deve
 
 ## Update Frontend Dependencies (xterm.js)
 
-**Last performed:** v0.2 (Current: 8 comprehensive addons integrated)
+**Last performed:** v0.2 (Current: 9 comprehensive addons integrated)
 **Files to modify:**
 - `/cmd/portty/assets/index.html` - Update CDN URLs with new versions
 - `/cmd/portty/assets/js/terminal.js` - Adjust for any API changes
@@ -66,22 +66,25 @@ This document contains step-by-step instructions for common maintenance and deve
    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-unicode11@0.8.0/lib/addon-unicode11.js"></script>
    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js"></script>
    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-clipboard@0.1.0/lib/addon-clipboard.js"></script>
+   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-ligatures@0.9.0/lib/addon-ligatures.js"></script>
    ```
 
 3. Test in browser:
    - Clear browser cache
    - Test all terminal functionality including search (Ctrl+F), font sizing (Ctrl+/-/0)
    - Verify WebSocket connection and WebGL acceleration
-   - Test resize functionality and mobile device detection
+   - Test resize functionality and WebGL2 support detection
    - Test clipboard operations and web link clicking
    - Verify Unicode 11 character support
+   - Test font ligatures rendering with supported fonts
 
 **Important notes:**
 - Check xterm.js migration guides for breaking changes
-- All 8 addon versions must be compatible with core xterm.js version
+- All 9 addon versions must be compatible with core xterm.js version
 - Test thoroughly in multiple browsers and mobile devices
 - Verify WebGL context loss handling works properly
 - Test search overlay functionality and keyboard shortcuts
+- Verify ligatures addon works with FontManager class
 
 ## Create New Release
 

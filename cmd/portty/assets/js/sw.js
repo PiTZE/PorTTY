@@ -73,28 +73,21 @@ self.addEventListener('fetch', (event) => {
     const { request } = event;
     const url = new URL(request.url);
     
-    // Skip non-GET requests
     if (request.method !== 'GET') {
         return;
     }
     
-    // Skip WebSocket upgrade requests
     if (request.headers.get('upgrade') === 'websocket') {
         return;
     }
     
-    // Handle different types of requests with appropriate strategies
     if (isStaticAsset(request.url)) {
-        // Static assets: Cache First strategy
         event.respondWith(cacheFirst(request));
     } else if (url.pathname === '/') {
-        // Main page: Network First with cache fallback
         event.respondWith(networkFirst(request));
     } else if (url.pathname.startsWith('/ws')) {
-        // WebSocket endpoint: Don't intercept
         return;
     } else {
-        // Other requests: Network First
         event.respondWith(networkFirst(request));
     }
 });
@@ -141,12 +134,11 @@ async function networkFirst(request) {
             return cachedResponse;
         }
         
-        // Return offline page for main requests
         if (request.destination === 'document') {
             return createOfflinePage();
         }
         
-        return new Response('Offline', { 
+        return new Response('Offline', {
             status: 503,
             statusText: 'Service Unavailable'
         });
@@ -369,7 +361,6 @@ self.addEventListener('message', (event) => {
             break;
             
         case 'UPDATE_CACHE':
-            // Trigger background cache update
             self.registration.sync.register('cache-update');
             break;
             

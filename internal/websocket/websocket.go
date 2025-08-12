@@ -37,6 +37,7 @@ type Handler struct {
 // CORE BUSINESS LOGIC
 // ============================================================================
 
+// NewHandler creates a new WebSocket handler with PTY factory injection
 func NewHandler(ptyFactory interfaces.PTYBridgeFactory) interfaces.WebSocketHandler {
 	return &Handler{
 		ptyFactory: ptyFactory,

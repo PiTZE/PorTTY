@@ -107,9 +107,7 @@ func (l *logger) Fatal(msg string, err error, fields ...Field) {
 // ============================================================================
 
 var (
-	ServerLogger = New("server")
-
+	ServerLogger    = New("server")
 	WebSocketLogger = New("websocket")
-
 	PTYBridgeLogger = New("ptybridge")
 )

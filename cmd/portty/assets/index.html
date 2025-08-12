@@ -1,17 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- ============================================================================ -->
-    <!-- DOCUMENT METADATA -->
-    <!-- ============================================================================ -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PorTTY</title>
     <meta name="description" content="Web Terminal">
     
-    <!-- ============================================================================ -->
-    <!-- PWA CONFIGURATION -->
-    <!-- ============================================================================ -->
+    <!-- PWA Configuration -->
     <meta name="theme-color" content="#000000">
     <meta name="background-color" content="#000000">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -22,35 +17,21 @@
     <meta name="msapplication-tap-highlight" content="no">
     <link rel="manifest" href="/manifest.json">
     
-    <!-- ============================================================================ -->
-    <!-- ICONS AND RESOURCES -->
-    <!-- ============================================================================ -->
     <link rel="icon" href="/icons/dark-theme-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icons/dark-theme-icon.svg">
     
-    <!-- ============================================================================ -->
-    <!-- EXTERNAL STYLESHEETS -->
-    <!-- ============================================================================ -->
     <link rel="stylesheet" href="/css/terminal.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
 </head>
 <body>
-    <!-- ============================================================================ -->
-    <!-- CONNECTION STATUS INDICATOR -->
-    <!-- ============================================================================ -->
     <div id="connection-status" class="connection-status force-visible">
         <span id="status-indicator" class="status-indicator connecting">●</span>
         <span id="status-text" class="status-text">Connecting...</span>
     </div>
     
-    <!-- ============================================================================ -->
-    <!-- MAIN TERMINAL INTERFACE -->
-    <!-- ============================================================================ -->
     <main id="terminal-container"></main>
     
-    <!-- ============================================================================ -->
-    <!-- EXTERNAL JAVASCRIPT LIBRARIES -->
-    <!-- ============================================================================ -->
+    <!-- External Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-attach@0.11.0/lib/addon-attach.js"></script>
@@ -61,9 +42,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-clipboard@0.1.0/lib/addon-clipboard.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-ligatures@0.9.0/lib/addon-ligatures.js"></script>
     
-    <!-- ============================================================================ -->
-    <!-- SERVICE WORKER REGISTRATION -->
-    <!-- ============================================================================ -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -78,9 +56,6 @@
         }
     </script>
     
-    <!-- ============================================================================ -->
-    <!-- MAIN APPLICATION SCRIPT -->
-    <!-- ============================================================================ -->
     <script src="/js/terminal.js"></script>
 </body>
 </html>

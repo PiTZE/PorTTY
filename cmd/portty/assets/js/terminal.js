@@ -501,7 +501,6 @@ function setupWebSocketConnection(term, fitAddon, connectionManager, socket, rec
         socket.addEventListener('open', () => {
             connectionManager.updateStatus('connected');
             reconnectAttempts = 0;
-            
             sendResize(term);
         });
         
