@@ -63,13 +63,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-clipboard@0.1.0/lib/addon-clipboard.js"></script>
     
     <!-- ============================================================================ -->
-    <!-- PWA SERVICE WORKER REGISTRATION -->
+    <!-- SERVICE WORKER REGISTRATION -->
     <!-- ============================================================================ -->
     <script>
-        // ============================================================================
-        // SERVICE WORKER REGISTRATION
-        // ============================================================================
-        
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/js/sw.js')
@@ -81,7 +77,6 @@
                     });
             });
         }
-        
     </script>
     
     <!-- ============================================================================ -->

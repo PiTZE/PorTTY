@@ -1,5 +1,5 @@
 /* ============================================================================ */
-/* CSS CUSTOM PROPERTIES - CENTRALIZED CONFIGURATION */
+/* CSS CUSTOM PROPERTIES */
 /* ============================================================================ */
 
 :root {
@@ -29,6 +29,10 @@
     --tertiary-border-color: #444444;
     --secondary-background-color: #cccccc;
 }
+
+/* ============================================================================ */
+/* BASE STYLES */
+/* ============================================================================ */
 
 html, body {
     margin: 0;
@@ -145,7 +149,7 @@ html, body {
 }
 
 /* ============================================================================ */
-/* PWA ENHANCEMENTS */
+/* CONNECTION STATUS */
 /* ============================================================================ */
 
 .connection-status {
@@ -218,10 +222,6 @@ html, body {
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
-}
-
-.terminal.pwa-mode {
-    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 
 .loading {

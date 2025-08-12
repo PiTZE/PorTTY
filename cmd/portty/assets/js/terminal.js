@@ -15,15 +15,27 @@ function isRunningOnLocalhost() {
     return ['localhost', '127.0.0.1', '::1'].includes(hostname);
 }
 
-function isMobileDevice() {
-    const userAgent = navigator.userAgent.toLowerCase();
-    const mobileKeywords = ['mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone'];
-    const hasMobileKeyword = mobileKeywords.some(keyword => userAgent.includes(keyword));
-    
-    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    const isSmallScreen = window.innerWidth <= 768 || window.innerHeight <= 768;
-    
-    return hasMobileKeyword || (isTouchDevice && isSmallScreen);
+function testWebGL2Support() {
+    try {
+        if (typeof window.WebGL2RenderingContext === 'undefined') {
+            return false;
+        }
+        
+        if (typeof window.OffscreenCanvas === 'undefined') {
+            return false;
+        }
+        
+        const offscreenCanvas = new OffscreenCanvas(1, 1);
+        const gl = offscreenCanvas.getContext('webgl2');
+        if (!gl) {
+            return false;
+        }
+        
+        return true;
+    } catch (error) {
+        console.warn('[PorTTY] WebGL2 support test failed:', error);
+        return false;
+    }
 }
 
 function getThemeFromCSS() {
@@ -181,7 +193,6 @@ class FontSizeManager {
         this.term.options.fontSize = this.currentSize;
         document.documentElement.style.setProperty('--font-size', `${this.currentSize}px`);
         
-        // Trigger resize to recalculate terminal dimensions
         if (window.porttyFitAddon) {
             requestAnimationFrame(() => {
                 window.porttyFitAddon.fit();
@@ -292,6 +303,9 @@ function initializePorTTY() {
         return;
     }
     
+    const supportsWebgl2InWorker = testWebGL2Support();
+    console.log('[PorTTY] WebGL2 support detected:', supportsWebgl2InWorker);
+    
     const theme = getThemeFromCSS();
     const terminalContainer = document.getElementById('terminal-container');
     
@@ -314,16 +328,17 @@ function initializePorTTY() {
         fastScrollModifier: 'alt',
         disableStdin: false,
         screenReaderMode: false,
-        rendererType: isMobileDevice() ? 'canvas' : 'webgl',
+        rendererType: supportsWebgl2InWorker ? 'webgl' : 'canvas',
         allowProposedApi: true
     });
     
     const fitAddon = new window.FitAddon.FitAddon();
-    const webglAddon = new window.WebglAddon.WebglAddon();
     const searchAddon = new window.SearchAddon.SearchAddon();
     const unicode11Addon = new window.Unicode11Addon.Unicode11Addon();
     const webLinksAddon = new window.WebLinksAddon.WebLinksAddon();
     const clipboardAddon = new window.ClipboardAddon.ClipboardAddon();
+    
+    term.open(terminalContainer);
     
     term.loadAddon(fitAddon);
     term.loadAddon(searchAddon);
@@ -331,16 +346,18 @@ function initializePorTTY() {
     term.loadAddon(webLinksAddon);
     term.loadAddon(clipboardAddon);
     
-    term.open(terminalContainer);
-    if (!isMobileDevice()) {
+    if (supportsWebgl2InWorker) {
         try {
-            webglAddon.onContextLoss(e => {
+            const webglAddon = new window.WebglAddon.WebglAddon();
+            webglAddon.onContextLoss(() => {
+                console.warn('WebGL context lost, falling back to canvas');
                 webglAddon.dispose();
+                term.setOption('rendererType', 'canvas');
             });
-            
             term.loadAddon(webglAddon);
-        } catch (error) {
-            console.warn('[PorTTY] WebGL addon failed to load, falling back to canvas:', error);
+        } catch (err) {
+            console.warn('WebGL addon failed to load, falling back to canvas:', err);
+            term.setOption('rendererType', 'canvas');
         }
     }
     
