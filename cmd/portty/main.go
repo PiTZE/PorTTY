@@ -664,7 +664,7 @@ func stopServer(pidFilePath string) {
 // INPUT VALIDATION FUNCTIONS
 // ============================================================================
 
-func validatePort(port string, context string) error {
+func validatePort(port string) error {
 	if port == "" {
 		return fmt.Errorf("port cannot be empty")
 	}
@@ -686,7 +686,7 @@ func validatePort(port string, context string) error {
 	return nil
 }
 
-func validateInterface(iface string, context string) error {
+func validateInterface(iface string) error {
 	if iface == "" {
 		return fmt.Errorf("interface cannot be empty")
 	}
@@ -712,11 +712,11 @@ func validateAddress(address string, context string) (string, int, error) {
 		return "", 0, fmt.Errorf("failed to parse address '%s': %w", address, err)
 	}
 
-	if err := validateInterface(host, context+" host"); err != nil {
+	if err := validateInterface(host); err != nil {
 		return "", 0, fmt.Errorf("invalid host in address '%s': %w", address, err)
 	}
 
-	if err := validatePort(portStr, context+" port"); err != nil {
+	if err := validatePort(portStr); err != nil {
 		return "", 0, fmt.Errorf("invalid port in address '%s': %w", address, err)
 	}
 
@@ -732,13 +732,6 @@ func validateAddress(address string, context string) (string, int, error) {
 // ERROR HANDLING FUNCTIONS
 // ============================================================================
 
-func logErrorWithContext(err error, context string, suggestion string) {
-	fmt.Fprintf(os.Stderr, "%s[ERROR]%s %s: %v\n", ColorRed, ColorReset, context, err)
-	if suggestion != "" {
-		fmt.Fprintf(os.Stderr, "%s💡 Suggestion:%s %s\n", ColorYellow, ColorReset, suggestion)
-	}
-}
-
 func logFatalWithContext(err error, context string, suggestion string) {
 	fmt.Fprintf(os.Stderr, "%s[FATAL]%s %s: %v\n", ColorRed, ColorReset, context, err)
 	if suggestion != "" {
@@ -752,10 +745,6 @@ func logInfo(message string) {
 
 func logWarning(message string) {
 	fmt.Printf("%s[WARNING]%s %s\n", ColorYellow, ColorReset, message)
-}
-
-func logSuccess(message string) {
-	fmt.Printf("%s[SUCCESS]%s %s\n", ColorGreen, ColorReset, message)
 }
 
 // ============================================================================
@@ -873,17 +862,17 @@ func parseArguments(args []string) (*Arguments, error) {
 
 func buildFinalAddress(args *Arguments) (string, error) {
 	if args.Interface != "" && args.Port != "" {
-		if err := validateInterface(args.Interface, "interface argument"); err != nil {
+		if err := validateInterface(args.Interface); err != nil {
 			return "", fmt.Errorf("invalid interface: %w", err)
 		}
-		if err := validatePort(args.Port, "port argument"); err != nil {
+		if err := validatePort(args.Port); err != nil {
 			return "", fmt.Errorf("invalid port: %w", err)
 		}
 		return fmt.Sprintf("%s:%s", args.Interface, args.Port), nil
 	}
 
 	if args.Interface != "" {
-		if err := validateInterface(args.Interface, "interface argument"); err != nil {
+		if err := validateInterface(args.Interface); err != nil {
 			return "", fmt.Errorf("invalid interface: %w", err)
 		}
 		_, defaultPort, _ := net.SplitHostPort(cfg.Server.DefaultAddress)
@@ -891,7 +880,7 @@ func buildFinalAddress(args *Arguments) (string, error) {
 	}
 
 	if args.Port != "" {
-		if err := validatePort(args.Port, "port argument"); err != nil {
+		if err := validatePort(args.Port); err != nil {
 			return "", fmt.Errorf("invalid port: %w", err)
 		}
 		defaultHost, _, _ := net.SplitHostPort(cfg.Server.DefaultAddress)
